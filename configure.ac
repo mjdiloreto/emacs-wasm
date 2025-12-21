@@ -1515,6 +1515,11 @@ case "${canonical}" in
     opsys=haiku
   ;;
 
+  ## WebAssembly via Emscripten
+  wasm32-*-emscripten* | wasm64-*-emscripten* )
+    opsys=emscripten
+  ;;
+
   ## Intel 386 machines where we don't care about the manufacturer.
   i[3456]86-*-* )
     case "${canonical}" in
@@ -6146,6 +6151,8 @@ case "$opsys$REALLY_ANDROID" in
   ##  option to use it.
   darwin) LIBS_TERMCAP="-lncurses" ;;
 
+  emscripten) LIBS_TERMCAP="-ltermcap" ;;
+
   gnu*) test -z "$LIBS_TERMCAP" && LIBS_TERMCAP="-lncurses" ;;
 
   freebsd)
@@ -6461,10 +6468,10 @@ if test "${opsys}" != "mingw32"; then
      in the full name stands for the login id.])
 fi
 
-dnl Everybody supports this, except MS.
+dnl Everybody supports this, except MS and Emscripten.
 dnl Seems like the kind of thing we should be testing for, though.
 ## Note: PTYs are broken on darwin <6.  Use at your own risk.
-if test "${opsys}" != "mingw32"; then
+if test "${opsys}" != "mingw32" && test "${opsys}" != "emscripten"; then
   AC_DEFINE([HAVE_PTYS], [1], [Define if the system supports pty devices.])
 fi
 
