@@ -200,6 +200,23 @@ run_build() {
 
     cd "$BUILD_DIR"
 
+    # Clean polluted source tree files that interfere with #include_next
+    # These are generated headers that should only exist in build directories
+    log_info "Checking for polluted source tree files..."
+    POLLUTED_FILES=(
+        "$EMACS_SRC/lib/sys/stat.h"
+        "$EMACS_SRC/lib/sys/random.h"
+        "$EMACS_SRC/lib/sys/select.h"
+        "$EMACS_SRC/lib/sys/time.h"
+        "$EMACS_SRC/lib/sys/types.h"
+    )
+    for polluted_file in "${POLLUTED_FILES[@]}"; do
+        if [ -f "$polluted_file" ]; then
+            log_warn "Removing polluted file: $polluted_file"
+            rm -f "$polluted_file"
+        fi
+    done
+
     # Copy native helper tools to WASM build directory
     # These must be native binaries that can run on the host during build
     log_info "Copying native helper tools to WASM build..."
@@ -211,11 +228,44 @@ run_build() {
         fi
     done
 
-    # Touch the tools with a future timestamp to prevent make from rebuilding them
-    # This is crucial - otherwise emmake will rebuild them as WASM binaries
-    touch -t $(date -v+1H +%Y%m%d%H%M.%S) lib-src/make-docfile lib-src/make-fingerprint 2>/dev/null || \
-    touch -d "+1 hour" lib-src/make-docfile lib-src/make-fingerprint 2>/dev/null || \
-    touch lib-src/make-docfile lib-src/make-fingerprint
+    # Preserve native libgnu.a for use by native tools
+    log_info "Preserving native libgnu.a..."
+    if [ -f "$BUILD_NATIVE/lib/libgnu.a" ]; then
+        cp "$BUILD_NATIVE/lib/libgnu.a" "lib/libgnu-native.a"
+        log_info "  Native libgnu.a saved as lib/libgnu-native.a"
+    else
+        log_error "Native libgnu.a not found!"
+        exit 1
+    fi
+
+    # Touch ALL native tools with future timestamp to prevent rebuilds
+    log_info "Timestamping native tools to prevent rebuilds..."
+    if date -v+1H +%Y%m%d%H%M.%S >/dev/null 2>&1; then
+        # macOS - use -perm to find executables
+        FUTURE_TIME=$(date -v+1H +%Y%m%d%H%M.%S)
+        find lib-src -type f -perm +111 -exec touch -t "$FUTURE_TIME" {} \;
+    elif date -d "+1 hour" +%Y%m%d%H%M.%S >/dev/null 2>&1; then
+        # GNU date (Linux) - use -executable flag
+        find lib-src -type f -executable -exec touch -d "+1 hour" {} \;
+    else
+        # Fallback: just touch all files in lib-src with current time
+        find lib-src -type f -exec touch {} \;
+    fi
+
+    # Patch lib-src Makefile to use native libgnu.a
+    log_info "Configuring lib-src to use native library..."
+    if [ -f lib-src/Makefile ]; then
+        sed -i.bak 's|LOADLIBES = \.\./lib/libgnu\.a|LOADLIBES = ../lib/libgnu-native.a|g' lib-src/Makefile
+
+        if grep -q "libgnu-native.a" lib-src/Makefile; then
+            log_info "  lib-src/Makefile patched successfully"
+        else
+            log_warn "  Makefile patch may have failed - check lib-src/Makefile"
+        fi
+    else
+        log_error "lib-src/Makefile not found!"
+        exit 1
+    fi
 
     log_info "Native tools installed and timestamped"
 
@@ -231,7 +281,7 @@ run_build() {
         "-s MODULARIZE=1"
         "-s EXPORT_NAME='createEmacs'"
         "-s FORCE_FILESYSTEM=1"
-        "-s ENVIRONMENT='web,worker'"
+        "-s ENVIRONMENT='web,worker,node'"
         "-lidbfs.js"
         "-s NO_EXIT_RUNTIME=1"
         "-s ASSERTIONS=1"  # Enable for debugging, remove for production
@@ -247,6 +297,11 @@ run_build() {
 
     # Stage 1: Build lib (gnulib) with Emscripten
     log_info "Stage 1: Building lib (gnulib)..."
+    # Force rebuild of lib if needed
+    if [ ! -f "lib/libgnu.a" ] || [ $(find lib -name "*.o" | wc -l) -lt 80 ]; then
+        log_info "  Cleaning lib directory for full rebuild..."
+        emmake make -C lib clean 2>/dev/null || true
+    fi
     emmake make -j$NPROC -C lib
 
     # Stage 2: lib-src tools are already native, just verify they exist
@@ -260,33 +315,45 @@ run_build() {
     log_info "Stage 3: Building src..."
     # Include both the library path and Emscripten flags
     # Use /usr/bin/true as a no-op since native make-fingerprint can't modify WASM binaries
-    emmake make -j$NPROC -C src \
+    # Use -o flag to tell make these native tools are already up-to-date
+
+    # Build just temacs first (not 'all' which triggers bootstrap)
+    log_info "Stage 3a: Building temacs..."
+    emmake make -j1 -C src temacs \
         LDFLAGS="-L$BUILD_DIR $EMSCRIPTEN_LDFLAGS" \
         MAKE_PDUMPER_FINGERPRINT=/usr/bin/true
 
+    # Add shebang to make temacs executable under Node.js
+    # This MUST happen before any step that tries to run temacs
     log_info "Making WASM binary executable..."
-    # Add Node.js shebang to make temacs directly executable
     if [ -f "src/temacs" ]; then
-        # Use heredoc to avoid shell escaping issues with the shebang
-        tail -n +2 src/temacs > src/temacs.body
-        cat > src/temacs.new << 'SHEBANG'
-#!/usr/bin/env node
-SHEBANG
-        cat src/temacs.body >> src/temacs.new
+        # Prepend shebang without removing any existing code
+        echo '#!/usr/bin/env node' | cat - src/temacs > src/temacs.new
         mv src/temacs.new src/temacs
-        rm src/temacs.body
         chmod +x src/temacs
         log_info "Added shebang to src/temacs"
+    else
+        log_error "temacs not found - build failed!"
+        exit 1
     fi
+
+    # Now continue with bootstrap (create pdumper)
+    log_info "Stage 3b: Creating bootstrap-emacs.pdmp..."
+    emmake make -j1 -C src bootstrap-emacs.pdmp \
+        LDFLAGS="-L$BUILD_DIR $EMSCRIPTEN_LDFLAGS" \
+        MAKE_PDUMPER_FINGERPRINT=/usr/bin/true || {
+        log_warn "Bootstrap failed - this is expected for cross-compilation"
+        log_info "You may need to run the pdumper step manually with Node.js"
+    }
 
     log_info "Build complete!"
 
     # Check for output files
-    if [ -f "src/emacs.js" ]; then
+    if [ -f "src/temacs" ]; then
         log_info "Generated files:"
-        ls -la src/emacs.*
+        ls -la src/temacs* src/*.wasm 2>/dev/null || true
     else
-        log_warn "emacs.js not found - build may have failed at link stage"
+        log_warn "temacs not found - build may have failed at link stage"
     fi
 }
 
