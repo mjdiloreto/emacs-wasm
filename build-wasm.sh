@@ -180,7 +180,7 @@ run_configure() {
         --with-pdumper=yes \
         --with-dumping=pdumper \
         --disable-build-details \
-        CFLAGS="-O2 -g0" \
+        CFLAGS="-O2 -g" \
         LDFLAGS="-L$BUILD_DIR" \
         LIBS="-ltermcap" \
         LIBS_TERMCAP="-ltermcap" \
@@ -272,12 +272,14 @@ run_build() {
     # Emscripten build flags
     # These are passed during the final link step
     EMSCRIPTEN_FLAGS=(
+        "-s SAFE_HEAP=1"
         "-s ASYNCIFY"
-        "-s ASYNCIFY_STACK_SIZE=65536"
+        "-s ASYNCIFY_STACK_SIZE=16777216"   # 16MB (max for debugging)
+        "-s STACK_SIZE=67108864"            # 64MB (max for debugging)
         "-s ALLOW_MEMORY_GROWTH=1"
         "-s INITIAL_MEMORY=268435456"      # 256MB
         "-s MAXIMUM_MEMORY=2147483648"      # 2GB
-        "-s EXPORTED_RUNTIME_METHODS=['FS','callMain','cwrap','ccall']"
+        "-s EXPORTED_RUNTIME_METHODS=['FS','callMain','cwrap','ccall','ENV']"
         "-s MODULARIZE=1"
         "-s EXPORT_NAME='createEmacs'"
         "-s FORCE_FILESYSTEM=1"
@@ -285,6 +287,11 @@ run_build() {
         "-lidbfs.js"
         "-s NO_EXIT_RUNTIME=1"
         "-s ASSERTIONS=1"  # Enable for debugging, remove for production
+
+        # Bundle Emacs data files into virtual filesystem
+        # These are required for Emacs to start (lisp files, charsets, etc.)
+        "--preload-file" "${EMACS_SRC}/lisp@/usr/local/share/emacs/31.0.50/lisp"
+        "--preload-file" "${EMACS_SRC}/etc@/usr/local/share/emacs/31.0.50/etc"
     )
 
     # Join flags for LDFLAGS
@@ -332,6 +339,9 @@ run_build() {
         mv src/temacs.new src/temacs
         chmod +x src/temacs
         log_info "Added shebang to src/temacs"
+
+        tail -n +2 src/temacs > src/temacs.js
+        log_info "temacs copied to js file for browser testing"
     else
         log_error "temacs not found - build failed!"
         exit 1
@@ -367,6 +377,13 @@ run_clean() {
     else
         log_info "WASM build directory doesn't exist"
     fi
+
+    # Also clean any stale .o files from source tree
+    # These can accumulate from failed builds and confuse make
+    log_info "Cleaning stale object files from source tree..."
+    find "$EMACS_SRC/src" -name "*.o" -delete 2>/dev/null || true
+    find "$EMACS_SRC/lib" -name "*.o" -delete 2>/dev/null || true
+    log_info "Source tree cleaned"
 }
 
 # Clean everything including native tools
@@ -527,6 +544,7 @@ case "${1:-help}" in
         ;;
     all)
         check_emscripten
+        run_clean      # Ensure fresh build with no stale files
         run_autogen
         run_configure
         run_build
