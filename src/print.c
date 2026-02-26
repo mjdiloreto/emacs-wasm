@@ -2471,6 +2471,18 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
     case Lisp_Symbol:
       {
 	Lisp_Object name = SYMBOL_NAME (obj);
+#ifdef __EMSCRIPTEN__
+	/* Guard against symbols with nil/uninitialized names.
+	   This can happen with heap-allocated symbols during loadup.  */
+	if (NILP (name) || !STRINGP (name))
+	  {
+	    fprintf (stderr, "[WASM DEBUG] symbol with bad name: obj=%#lx sym@%p name=%#lx\n",
+		     (unsigned long)XLI (obj), (void *)XBARE_SYMBOL (obj),
+		     (unsigned long)XLI (name));
+	    print_c_string ("#<symbol-with-no-name>", printcharfun);
+	    break;
+	  }
+#endif
 	ptrdiff_t size_byte = SBYTES (name);
 
 	char *p = SSDATA (name);

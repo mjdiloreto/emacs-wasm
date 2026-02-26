@@ -119,6 +119,12 @@
 (set-buffer "*scratch*")
 (setq buffer-undo-list t)
 
+;; WASM: Prevent GC during loadup.  On WASM, conservative stack
+;; scanning produces false positives that corrupt the mark stack.
+;; Setting a very high threshold prevents GC from running during
+;; the loading phase.  GC will be re-enabled after loadup.
+(setq gc-cons-threshold most-positive-fixnum)
+
 (load "emacs-lisp/debug-early")
 (load "emacs-lisp/byte-run")
 (load "emacs-lisp/backquote")
@@ -127,7 +133,8 @@
 
 ;; Do it after subr, since both after-load-functions and add-hook are
 ;; implemented in subr.el.
-(add-hook 'after-load-functions (lambda (_) (garbage-collect)))
+;; WASM: Skip frequent GC during loadup to avoid stack scanning issues.
+;; (add-hook 'after-load-functions (lambda (_) (garbage-collect)))
 
 (load "version")
 
