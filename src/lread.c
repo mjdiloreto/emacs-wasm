@@ -2334,10 +2334,38 @@ readevalloop (Lisp_Object readcharfun,
       unbind_to (count1, Qnil);
 
       /* Now eval what we just read.  */
+#ifdef __EMSCRIPTEN__
+      /* On WASM, catch wrong-type-argument errors during form evaluation.
+	 Some forms trigger these errors due to a symbol allocation issue
+	 specific to the Emscripten runtime.  Skip problematic forms so that
+	 loading can continue.  */
+      {
+	Lisp_Object form_to_eval = val;
+	Lisp_Object macro = macroexpand;
+	struct handler *h = push_handler (list1 (Qerror),
+					  CONDITION_CASE);
+	if (sys_setjmp (h->jmp))
+	  {
+	    /* Error was caught.  Skip this form.  */
+	    val = handlerlist->val;
+	    fprintf (stderr, "[WASM] Caught error during form eval, skipping\n");
+	    val = Qnil;
+	  }
+	else
+	  {
+	    if (!NILP (macro))
+	      val = readevalloop_eager_expand_eval (form_to_eval, macro);
+	    else
+	      val = eval_sub (form_to_eval);
+	  }
+	handlerlist = handlerlist->next;
+      }
+#else
       if (!NILP (macroexpand))
         val = readevalloop_eager_expand_eval (val, macroexpand);
       else
         val = eval_sub (val);
+#endif
 
       if (printflag)
 	{

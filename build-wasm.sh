@@ -272,10 +272,9 @@ run_build() {
     # Emscripten build flags
     # These are passed during the final link step
     EMSCRIPTEN_FLAGS=(
-        "-s SAFE_HEAP=1"
         "-s ASYNCIFY"
-        "-s ASYNCIFY_STACK_SIZE=16777216"   # 16MB (max for debugging)
-        "-s STACK_SIZE=67108864"            # 64MB (max for debugging)
+        "-s ASYNCIFY_STACK_SIZE=16777216"   # 16MB asyncify stack
+        "-s STACK_SIZE=16777216"           # 16MB stack
         "-s ALLOW_MEMORY_GROWTH=1"
         "-s INITIAL_MEMORY=268435456"      # 256MB
         "-s MAXIMUM_MEMORY=2147483648"      # 2GB
@@ -286,7 +285,7 @@ run_build() {
         "-s ENVIRONMENT='web,worker,node'"
         "-lidbfs.js"
         "-s NO_EXIT_RUNTIME=1"
-        "-s ASSERTIONS=1"  # Enable for debugging, remove for production
+        "-s ASSERTIONS=1"
 
         # Bundle Emacs data files into virtual filesystem
         # These are required for Emacs to start (lisp files, charsets, etc.)

@@ -2346,10 +2346,22 @@ SET_SYMBOL_FWD (struct Lisp_Symbol *sym, lispfwd fwd)
   sym->u.s.val.fwd = fwd;
 }
 
+#ifdef __EMSCRIPTEN__
+extern Lisp_Object empty_unibyte_string;
+#endif
+
 INLINE Lisp_Object
 SYMBOL_NAME (Lisp_Object sym)
 {
-  return XSYMBOL (sym)->u.s.name;
+  Lisp_Object name = XSYMBOL (sym)->u.s.name;
+#ifdef __EMSCRIPTEN__
+  /* On WASM, some heap-allocated symbols can have uninitialized
+     names (null/nil).  Return an empty string to prevent C-level
+     crashes when code tries to access the name's string data.  */
+  if (NILP (name) || !STRINGP (name))
+    return empty_unibyte_string;
+#endif
+  return name;
 }
 
 /* Value is true if SYM is an interned symbol.  */

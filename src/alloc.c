@@ -6529,6 +6529,19 @@ process_mark_stack (ptrdiff_t base_sp)
       Lisp_Object obj = mark_stack_pop ();
     mark_obj: ;
       void *po = XPNTR (obj);
+#ifdef __EMSCRIPTEN__
+      /* On WASM, conservative stack scanning can push invalid pointers
+	 onto the mark stack.  Validate that the pointer is within the
+	 WASM linear memory before dereferencing it.  */
+      {
+	extern unsigned char *__heap_base;
+	uintptr_t addr = (uintptr_t) po;
+	uintptr_t heap_end = (uintptr_t) __builtin_wasm_memory_size (0)
+			     * 65536;
+	if (addr == 0 || addr >= heap_end)
+	  continue;
+      }
+#endif
 #if GC_REMEMBER_LAST_MARKED
       last_marked[last_marked_index++] = obj;
       last_marked_index &= LAST_MARKED_SIZE - 1;

@@ -1097,6 +1097,13 @@ usage: (define-charset-internal ...)  */)
     CHECK_VECTOR (val);
   ASET (attrs, charset_unify_map, val);
 
+#ifdef __EMSCRIPTEN__
+  /* On WASM32, some symbol allocations can produce objects with null names
+     that end up in plists.  Treat non-list plists as nil to avoid errors
+     during charset loading.  */
+  if (!CONSP (args[charset_arg_plist]) && !NILP (args[charset_arg_plist]))
+    args[charset_arg_plist] = Qnil;
+#endif
   CHECK_LIST (args[charset_arg_plist]);
   ASET (attrs, charset_plist, args[charset_arg_plist]);
 

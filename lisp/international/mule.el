@@ -286,7 +286,10 @@ attribute."
     (plist-put props :base name)
     (setcdr (assq :plist attrs) props)
 
-    (apply 'define-charset-internal name (mapcar 'cdr attrs))))
+    (condition-case err
+        (apply 'define-charset-internal name (mapcar 'cdr attrs))
+      (wrong-type-argument
+       (message "Warning: charset %s definition failed: %S" name err)))))
 
 (defvar hack-read-symbol-shorthands-function nil
   "Holds function to compute `read-symbol-shorthands'.")

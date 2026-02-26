@@ -497,12 +497,14 @@ wasm_stub_socket (int domain, int type, int protocol)
 // short ospeed = 0;      /* Output speed (baud rate) */
 
 /* tputs - output a termcap string with padding.
-   In WASM we just output the string directly.  */
-int
+   In WASM we just output the string directly.
+   Note: Emacs declares tputs as returning void (see tparam.h),
+   so we must match that signature exactly for WASM compatibility.  */
+void
 tputs (const char *str, int affcnt, int (*putc_func)(int))
 {
   if (!str)
-    return 0;
+    return;
 
   while (*str)
     {
@@ -510,8 +512,6 @@ tputs (const char *str, int affcnt, int (*putc_func)(int))
         putc_func (*str);
       str++;
     }
-
-  return 0;
 }
 
 /* tgoto - generate cursor motion string.
