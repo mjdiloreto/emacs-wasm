@@ -2722,13 +2722,6 @@ read_char (int commandflag, Lisp_Object map,
       WASM_TRACE ("[WASM-C] read_char: after detect_input_pending");
 
       /* Redisplay if no pending input.  */
-#ifdef __EMSCRIPTEN__
-      /* On WASM with PROXY_TO_PTHREAD, redisplay() calls write() which
-	 is proxied to the main thread.  Skip redisplay here — it will
-	 happen in the command loop after the command is processed.
-	 This avoids a potential proxy deadlock.  */
-      (void) 0;
-#else
       while (!(input_pending && input_was_pending))
 	{
 	  input_was_pending = input_pending;
@@ -2746,7 +2739,6 @@ read_char (int commandflag, Lisp_Object map,
 	  swallow_events (false);
 	  /* If that cleared input_pending, try again to redisplay.  */
 	}
-#endif
 
       /* Prevent the redisplay we just did
 	 from messing up echoing of the input after the prompt.  */
