@@ -205,6 +205,13 @@ wasm_stub_sigsuspend (const sigset_t *mask)
   return -1;
 }
 
+/* Direct alias for linker resolution (pthreads libc doesn't provide this).  */
+int
+sigsuspend (const sigset_t *mask)
+{
+  return wasm_stub_sigsuspend (mask);
+}
+
 /* sigaction - store handlers but delivery is limited.  */
 static struct sigaction wasm_signal_handlers[NSIG];
 
@@ -709,6 +716,40 @@ tparm (const char *str, ...)
 {
   /* Return the string unmodified since we don't have real terminfo.  */
   return (char *)str;
+}
+
+/* ============================================================
+   PTY Data Availability Check
+
+   Check if the xterm-pty PTY slave has readable data.
+   Used by tty_read_avail_input to avoid blocking read() calls.
+   ============================================================ */
+
+#include <emscripten.h>
+
+/* Check if the xterm-pty PTY has data available for reading.
+   Returns 1 if data is available, 0 otherwise.
+   Uses select() with timeout 0 — this is proxied to the main thread
+   where xterm-pty's poll handler checks PTY.readable.  */
+
+#include <sys/select.h>
+
+EMSCRIPTEN_KEEPALIVE
+int
+wasm_pty_has_data (void)
+{
+  fd_set rfds;
+  struct timeval tv;
+
+  FD_ZERO (&rfds);
+  FD_SET (STDIN_FILENO, &rfds);
+
+  /* Zero timeout = non-blocking poll.  */
+  tv.tv_sec = 0;
+  tv.tv_usec = 0;
+
+  int ret = select (STDIN_FILENO + 1, &rfds, NULL, NULL, &tv);
+  return ret > 0 && FD_ISSET (STDIN_FILENO, &rfds);
 }
 
 /* sysinfo - get system information (Linux-specific).  */

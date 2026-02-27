@@ -964,18 +964,13 @@ static Lisp_Object
 cmd_error (Lisp_Object data)
 {
 #ifdef __EMSCRIPTEN__
-  extern void emscripten_console_error(const char *);
-  emscripten_console_error("[WASM-C] cmd_error called!");
+  fprintf (stderr, "[WASM-C] cmd_error called!\n");
   if (CONSP (data) && SYMBOLP (XCAR (data)))
     {
       Lisp_Object name = SYMBOL_NAME (XCAR (data));
       if (STRINGP (name))
-        {
-          char buf[256];
-          snprintf (buf, sizeof buf, "[WASM-C] error: %.*s",
-                    (int)SBYTES (name), SDATA (name));
-          emscripten_console_error (buf);
-        }
+	fprintf (stderr, "[WASM-C] error: %.*s\n",
+		 (int)SBYTES (name), SDATA (name));
     }
 #endif
   Lisp_Object old_level, old_length;
@@ -1332,6 +1327,9 @@ static void adjust_point_for_property (ptrdiff_t, bool);
 static Lisp_Object
 command_loop_1 (void)
 {
+#ifdef __EMSCRIPTEN__
+  fprintf (stderr, "[WASM-C] command_loop_1 entered\n");
+#endif
   modiff_count prev_modiff = 0;
   struct buffer *prev_buffer = NULL;
 
@@ -1428,6 +1426,15 @@ command_loop_1 (void)
 	    }
 	}
 
+#ifdef __EMSCRIPTEN__
+      {
+	static int loop_count = 0;
+	loop_count++;
+	if (loop_count <= 3)
+	  fprintf (stderr, "[WASM-C] command_loop_1 iteration #%d, about to read_key_sequence\n",
+		   loop_count);
+      }
+#endif
       Vthis_command = Qnil;
       Vreal_this_command = Qnil;
       Vthis_original_command = Qnil;
@@ -2359,6 +2366,10 @@ read_event_from_main_queue (struct timespec *end_time,
   if (!end_time)
     timer_start_idle ();
   struct frame *frame;
+#ifdef __EMSCRIPTEN__
+  fprintf (stderr, "[WASM-C] read_char: about to call kbd_buffer_get_event\n");
+  fflush (stderr);
+#endif
   c = kbd_buffer_get_event (&kb, used_mouse_menu, &frame, end_time);
   unbind_to (count, Qnil);
 
@@ -2577,6 +2588,15 @@ read_char (int commandflag, Lisp_Object map,
 	   Lisp_Object prev_event,
 	   bool *used_mouse_menu, struct timespec *end_time)
 {
+#ifdef __EMSCRIPTEN__
+  {
+    static int rc_count = 0;
+    rc_count++;
+    if (rc_count <= 3)
+      fprintf (stderr, "[WASM-C] read_char #%d: commandflag=%d\n",
+	       rc_count, commandflag);
+  }
+#endif
   Lisp_Object c;
   sys_jmp_buf local_getcjmp;
   sys_jmp_buf save_jump;
@@ -2593,6 +2613,12 @@ read_char (int commandflag, Lisp_Object map,
   previous_echo_area_message = Qnil;
 
  retry:
+#ifdef __EMSCRIPTEN__
+  {
+    extern void emscripten_console_error(const char *);
+    emscripten_console_error("[WASM-C] read_char: at retry label");
+  }
+#endif
 
   recorded = false;
 
@@ -2718,11 +2744,30 @@ read_char (int commandflag, Lisp_Object map,
 
 	/* If there is pending input, process any events which are not
 	   user-visible, such as X selection_request events.  */
+#ifdef __EMSCRIPTEN__
+      {
+	extern void emscripten_console_error(const char *);
+	emscripten_console_error("[WASM-C] read_char: before detect_input_pending");
+      }
+#endif
       if (input_pending
 	  || detect_input_pending_run_timers (0))
 	swallow_events (false);		/* May clear input_pending.  */
+#ifdef __EMSCRIPTEN__
+      {
+	extern void emscripten_console_error(const char *);
+	emscripten_console_error("[WASM-C] read_char: after detect_input_pending");
+      }
+#endif
 
       /* Redisplay if no pending input.  */
+#ifdef __EMSCRIPTEN__
+      /* On WASM with PROXY_TO_PTHREAD, redisplay() calls write() which
+	 is proxied to the main thread.  Skip redisplay here — it will
+	 happen in the command loop after the command is processed.
+	 This avoids a potential proxy deadlock.  */
+      (void) 0;
+#else
       while (!(input_pending && input_was_pending))
 	{
 	  input_was_pending = input_pending;
@@ -2740,6 +2785,7 @@ read_char (int commandflag, Lisp_Object map,
 	  swallow_events (false);
 	  /* If that cleared input_pending, try again to redisplay.  */
 	}
+#endif
 
       /* Prevent the redisplay we just did
 	 from messing up echoing of the input after the prompt.  */
@@ -2748,6 +2794,12 @@ read_char (int commandflag, Lisp_Object map,
 
     }
 
+#ifdef __EMSCRIPTEN__
+  {
+    extern void emscripten_console_error(const char *);
+    emscripten_console_error("[WASM-C] read_char: past redisplay loop (mid)");
+  }
+#endif
   /* Message turns off echoing unless more keystrokes turn it on again.
 
      The code in 20.x for the condition was
@@ -2865,6 +2917,12 @@ read_char (int commandflag, Lisp_Object map,
   c = c_volatile;
 #endif
 
+#ifdef __EMSCRIPTEN__
+  {
+    extern void emscripten_console_error(const char *);
+    emscripten_console_error("[WASM-C] read_char: past setjmp (A)");
+  }
+#endif
   /* Start idle timers if no time limit is supplied.  We don't do it
      if a time limit is supplied to avoid an infinite recursion in the
      situation where an idle timer calls `sit-for'.  */
@@ -2955,6 +3013,12 @@ read_char (int commandflag, Lisp_Object map,
       goto exit;
     }
 
+#ifdef __EMSCRIPTEN__
+  {
+    extern void emscripten_console_error(const char *);
+    emscripten_console_error("[WASM-C] read_char: past echo/menu (B)");
+  }
+#endif
   /* Maybe autosave and/or garbage collect due to idleness.  */
 
   if (INTERACTIVE && NILP (c))
@@ -3082,6 +3146,12 @@ read_char (int commandflag, Lisp_Object map,
 
   STOP_POLLING;
 
+#ifdef __EMSCRIPTEN__
+  {
+    extern void emscripten_console_error(const char *);
+    emscripten_console_error(NILP (c) ? "[WASM-C] read_char: c=nil, calling read_decoded (C)" : "[WASM-C] read_char: c=non-nil (C)");
+  }
+#endif
   if (NILP (c))
     {
       c = read_decoded_event_from_main_queue (end_time, local_getcjmp,
@@ -4091,6 +4161,10 @@ kbd_buffer_get_event (KBOARD **kbp,
 
   *kbp = current_kboard;
 
+#ifdef __EMSCRIPTEN__
+  fprintf (stderr, "[WASM-C] kbd_buffer_get_event: entering input wait loop\n");
+  fflush (stderr);
+#endif
   /* Wait until there is input available.  */
   for (;;)
     {
@@ -4169,7 +4243,9 @@ kbd_buffer_get_event (KBOARD **kbp,
 	      if (tty->showing_menu)
 		do_display = false;
 	    }
-
+#ifdef __EMSCRIPTEN__
+	  fprintf (stderr, "[WASM-C] read_char: about to call wait_reading_process_output\n");
+#endif
 	  wait_reading_process_output (0, 0, -1, do_display, Qnil, NULL, 0);
 	}
 
@@ -8262,9 +8338,16 @@ tty_read_avail_input (struct terminal *terminal,
 
 /* Determine how many characters we should *try* to read.  */
 #ifdef __EMSCRIPTEN__
-  /* On WASM, FIONREAD doesn't work on the virtual TTY.
-     Just try to read a small amount non-blocking.  */
-  n_to_read = sizeof cbuf;
+  /* On WASM with PROXY_TO_PTHREAD, read() blocks via Atomics.wait()
+     when no data is available.  Check the xterm-pty PTY buffer first
+     via JS — if no data is available, return 0 without blocking.
+     When data IS available, read() will succeed immediately.  */
+  {
+    extern int wasm_pty_has_data (void);
+    if (!wasm_pty_has_data ())
+      return 0;
+    n_to_read = sizeof cbuf;
+  }
 #elif defined USABLE_FIONREAD
   /* Find out how much input is available.  */
   if (ioctl (fileno (tty->input), FIONREAD, &n_to_read) < 0)

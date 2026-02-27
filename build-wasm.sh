@@ -180,7 +180,7 @@ run_configure() {
         --with-pdumper=yes \
         --with-dumping=pdumper \
         --disable-build-details \
-        CFLAGS="-O2 -g" \
+        CFLAGS="-O2 -g -pthread" \
         LDFLAGS="-L$BUILD_DIR" \
         LIBS="-ltermcap" \
         LIBS_TERMCAP="-ltermcap" \
@@ -272,8 +272,8 @@ run_build() {
     # Emscripten build flags
     # These are passed during the final link step
     EMSCRIPTEN_FLAGS=(
-        "-s ASYNCIFY"
-        "-s ASYNCIFY_STACK_SIZE=16777216"   # 16MB asyncify stack
+        "-pthread"
+        "-s PROXY_TO_PTHREAD"
         "-s STACK_SIZE=16777216"           # 16MB stack
         "-s ALLOW_MEMORY_GROWTH=1"
         "-s INITIAL_MEMORY=268435456"      # 256MB
