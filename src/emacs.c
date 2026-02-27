@@ -151,6 +151,7 @@ extern char etext;
 #include "pdumper.h"
 #include "fingerprint.h"
 #include "epaths.h"
+#include "wasm-debug.h"
 
 /* Include these only because of INLINE.  */
 #include "comp.h"
@@ -2536,14 +2537,9 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   init_process_emacs (sockfd);
 
   init_keyboard ();	/* This too must precede init_sys_modes.  */
-#ifdef __EMSCRIPTEN__
-  #include <emscripten.h>
-  EM_ASM({ console.error('[WASM-C] about to call init_display, noninteractive=' + $0); }, noninteractive);
-#endif
+  WASM_TRACE ("[WASM-C] about to call init_display");
   init_display ();	/* Determine terminal type.  Calls init_sys_modes.  */
-#ifdef __EMSCRIPTEN__
-  EM_ASM({ console.error('[WASM-C] init_display done'); });
-#endif
+  WASM_TRACE ("[WASM-C] init_display done");
 #if HAVE_W32NOTIFY
   if (noninteractive)
     init_crit ();	/* w32notify.c needs this in batch mode.  */
@@ -2633,10 +2629,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
 
   /* Enter editor command loop.  This never returns.  */
   set_initial_minibuffer_mode ();
-#ifdef __EMSCRIPTEN__
-  EM_ASM({ console.error('[WASM-C] about to enter Frecursive_edit, Vtop_level type=' + $0); },
-	 XTYPE (Vtop_level));
-#endif
+  WASM_TRACE ("[WASM-C] about to enter Frecursive_edit");
   Frecursive_edit ();
   eassume (false);
 }
@@ -2978,18 +2971,17 @@ killed.  */
 {
   int exit_code;
 
-#ifdef __EMSCRIPTEN__
+#ifdef WASM_DEBUG
   {
-    extern void emscripten_console_error(const char *);
     char buf[128];
     EMACS_INT code = FIXNUMP (arg) ? XFIXNUM (arg) : 0;
-    snprintf (buf, sizeof buf, "[WASM-C] Fkill_emacs called with code=%ld", (long)code);
-    emscripten_console_error (buf);
+    WASM_TRACE_FMT (buf, sizeof buf,
+		    "[WASM-C] Fkill_emacs called with code=%ld", (long)code);
     /* Walk the specpdl backtrace to show what called kill-emacs */
     {
       union specbinding *pdl;
       int frame_count = 0;
-      emscripten_console_error ("[WASM-C] Backtrace:");
+      WASM_TRACE ("[WASM-C] Backtrace:");
       for (pdl = specpdl_ptr - 1; pdl >= specpdl && frame_count < 20; pdl--)
 	{
 	  if (pdl->kind >= SPECPDL_BACKTRACE)
@@ -3000,10 +2992,9 @@ killed.  */
 		  Lisp_Object name = SYMBOL_NAME (fun);
 		  if (STRINGP (name) && SBYTES (name) > 0)
 		    {
-		      snprintf (buf, sizeof buf, "[WASM-C]   %.*s",
-				(int)(SBYTES (name) < 100 ? SBYTES (name) : 100),
-				SDATA (name));
-		      emscripten_console_error (buf);
+		      WASM_TRACE_FMT (buf, sizeof buf, "[WASM-C]   %.*s",
+				      (int)(SBYTES (name) < 100 ? SBYTES (name) : 100),
+				      SDATA (name));
 		      frame_count++;
 		    }
 		}

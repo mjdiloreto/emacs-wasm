@@ -4404,6 +4404,14 @@ init_tty (const char *name, const char *terminal_type, bool must_succeed)
       int fd = STDIN_FILENO;
       tty->input = stdin;
       tty->output = stdout;
+
+      /* Buffer terminal output to reduce proxy round-trips in
+	 PROXY_TO_PTHREAD mode.  Each fputc during redisplay would
+	 otherwise trigger a separate write() syscall proxied to the
+	 main thread.  With full buffering, output accumulates until
+	 fflush() in update_frame_1 (dispnew.c), producing a single
+	 write() call per redisplay cycle.  */
+      setvbuf (stdout, NULL, _IOFBF, 65536);
     }
 #else
     /* If !ctty, don't recognize it as our controlling terminal, and
