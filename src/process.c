@@ -5419,11 +5419,17 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 
 #ifdef __EMSCRIPTEN__
   {
+    extern void emscripten_console_error (const char *);
     static int wrpo_count = 0;
     wrpo_count++;
     if (wrpo_count <= 3 || wrpo_count % 50 == 0)
-      fprintf (stderr, "[WASM-C] wait_reading_process_output #%d: read_kbd=%d time_limit=%ld\n",
-	       wrpo_count, read_kbd, (long) time_limit);
+      {
+	char buf[128];
+	snprintf (buf, sizeof buf,
+		  "[WASM-C] wait_reading_process_output #%d: read_kbd=%d time_limit=%ld",
+		  wrpo_count, read_kbd, (long) time_limit);
+	emscripten_console_error (buf);
+      }
   }
 #endif
   FD_ZERO (&Available);

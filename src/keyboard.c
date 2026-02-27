@@ -964,14 +964,21 @@ static Lisp_Object
 cmd_error (Lisp_Object data)
 {
 #ifdef __EMSCRIPTEN__
-  fprintf (stderr, "[WASM-C] cmd_error called!\n");
-  if (CONSP (data) && SYMBOLP (XCAR (data)))
-    {
-      Lisp_Object name = SYMBOL_NAME (XCAR (data));
-      if (STRINGP (name))
-	fprintf (stderr, "[WASM-C] error: %.*s\n",
-		 (int)SBYTES (name), SDATA (name));
-    }
+  {
+    extern void emscripten_console_error (const char *);
+    emscripten_console_error ("[WASM-C] cmd_error called!");
+    if (CONSP (data) && SYMBOLP (XCAR (data)))
+      {
+	Lisp_Object name = SYMBOL_NAME (XCAR (data));
+	if (STRINGP (name))
+	  {
+	    char buf[256];
+	    snprintf (buf, sizeof buf, "[WASM-C] error: %.*s",
+		      (int)SBYTES (name), SDATA (name));
+	    emscripten_console_error (buf);
+	  }
+      }
+  }
 #endif
   Lisp_Object old_level, old_length;
   specpdl_ref count = SPECPDL_INDEX ();
@@ -1328,7 +1335,10 @@ static Lisp_Object
 command_loop_1 (void)
 {
 #ifdef __EMSCRIPTEN__
-  fprintf (stderr, "[WASM-C] command_loop_1 entered\n");
+  {
+    extern void emscripten_console_error (const char *);
+    emscripten_console_error ("[WASM-C] command_loop_1 entered");
+  }
 #endif
   modiff_count prev_modiff = 0;
   struct buffer *prev_buffer = NULL;
@@ -1428,11 +1438,17 @@ command_loop_1 (void)
 
 #ifdef __EMSCRIPTEN__
       {
+	extern void emscripten_console_error (const char *);
 	static int loop_count = 0;
 	loop_count++;
 	if (loop_count <= 3)
-	  fprintf (stderr, "[WASM-C] command_loop_1 iteration #%d, about to read_key_sequence\n",
-		   loop_count);
+	  {
+	    char buf[128];
+	    snprintf (buf, sizeof buf,
+		      "[WASM-C] command_loop_1 iteration #%d, about to read_key_sequence",
+		      loop_count);
+	    emscripten_console_error (buf);
+	  }
       }
 #endif
       Vthis_command = Qnil;
@@ -2363,8 +2379,10 @@ read_event_from_main_queue (struct timespec *end_time,
   if (!end_time)
     timer_start_idle ();
 #ifdef __EMSCRIPTEN__
-  fprintf (stderr, "[WASM-C] read_char: about to call kbd_buffer_get_event\n");
-  fflush (stderr);
+  {
+    extern void emscripten_console_error (const char *);
+    emscripten_console_error ("[WASM-C] read_char: about to call kbd_buffer_get_event");
+  }
 #endif
   c = kbd_buffer_get_event (&kb, used_mouse_menu, end_time);
   unbind_to (count, Qnil);
@@ -2569,11 +2587,16 @@ read_char (int commandflag, Lisp_Object map,
 {
 #ifdef __EMSCRIPTEN__
   {
+    extern void emscripten_console_error (const char *);
     static int rc_count = 0;
     rc_count++;
     if (rc_count <= 3)
-      fprintf (stderr, "[WASM-C] read_char #%d: commandflag=%d\n",
-	       rc_count, commandflag);
+      {
+	char buf[128];
+	snprintf (buf, sizeof buf, "[WASM-C] read_char #%d: commandflag=%d",
+		  rc_count, commandflag);
+	emscripten_console_error (buf);
+      }
   }
 #endif
   Lisp_Object c;
@@ -4132,8 +4155,10 @@ kbd_buffer_get_event (KBOARD **kbp,
   *kbp = current_kboard;
 
 #ifdef __EMSCRIPTEN__
-  fprintf (stderr, "[WASM-C] kbd_buffer_get_event: entering input wait loop\n");
-  fflush (stderr);
+  {
+    extern void emscripten_console_error (const char *);
+    emscripten_console_error ("[WASM-C] kbd_buffer_get_event: entering input wait loop");
+  }
 #endif
   /* Wait until there is input available.  */
   for (;;)
@@ -4214,7 +4239,10 @@ kbd_buffer_get_event (KBOARD **kbp,
 		do_display = false;
 	    }
 #ifdef __EMSCRIPTEN__
-	  fprintf (stderr, "[WASM-C] read_char: about to call wait_reading_process_output\n");
+	  {
+	    extern void emscripten_console_error (const char *);
+	    emscripten_console_error ("[WASM-C] read_char: about to call wait_reading_process_output");
+	  }
 #endif
 	  wait_reading_process_output (0, 0, -1, do_display, Qnil, NULL, 0);
 	}
