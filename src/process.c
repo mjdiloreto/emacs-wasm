@@ -124,6 +124,8 @@ static struct rlimit nofile_limit;
 #include "androidterm.h"
 #endif
 
+#include "wasm-debug.h"
+
 #ifdef HAVE_WINDOW_SYSTEM
 #include TERM_HEADER
 #endif /* HAVE_WINDOW_SYSTEM */
@@ -5307,26 +5309,25 @@ wait_reading_process_output_1 (void)
    __syscall_pselect6 (used by pselect/rpl_pselect), but it DOES
    intercept __syscall__newselect (used by select) with proper blocking
    via Atomics.wait() in PROXY_TO_PTHREAD mode.  */
-static int wasm_select_call_count = 0;
-
 static int
 wasm_select_wrapper (int nfds, fd_set *readfds, fd_set *writefds,
 		     fd_set *exceptfds, const struct timespec *timeout,
 		     const sigset_t *sigmask)
 {
+#ifdef WASM_DEBUG
+  static int wasm_select_call_count = 0;
   wasm_select_call_count++;
   int has_stdin = readfds && FD_ISSET (STDIN_FILENO, readfds);
 
   if (wasm_select_call_count <= 3 || wasm_select_call_count % 100 == 0)
     {
-      extern void emscripten_console_error (const char *);
       char buf[128];
-      snprintf (buf, sizeof buf,
-		"[WASM-C] wasm_select_wrapper #%d: nfds=%d stdin=%d timeout=%s",
-		wasm_select_call_count, nfds, has_stdin,
-		timeout ? "set" : "null");
-      emscripten_console_error (buf);
+      WASM_TRACE_FMT (buf, sizeof buf,
+		      "[WASM-C] wasm_select_wrapper #%d: nfds=%d stdin=%d timeout=%s",
+		      wasm_select_call_count, nfds, has_stdin,
+		      timeout ? "set" : "null");
     }
+#endif
 
   struct timeval tv, *tvp = NULL;
   if (timeout)
@@ -5337,14 +5338,14 @@ wasm_select_wrapper (int nfds, fd_set *readfds, fd_set *writefds,
     }
   int result = select (nfds, readfds, writefds, exceptfds, tvp);
 
+#ifdef WASM_DEBUG
   if (wasm_select_call_count <= 3 || wasm_select_call_count % 100 == 0)
     {
-      extern void emscripten_console_error (const char *);
       char buf[128];
-      snprintf (buf, sizeof buf,
-		"[WASM-C] select returned %d", result);
-      emscripten_console_error (buf);
+      WASM_TRACE_FMT (buf, sizeof buf,
+		      "[WASM-C] select returned %d", result);
     }
+#endif
 
   return result;
 }
@@ -5438,18 +5439,16 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 	   || NILP (wait_proc->thread)
 	   || XTHREAD (wait_proc->thread) == current_thread);
 
-#ifdef __EMSCRIPTEN__
+#ifdef WASM_DEBUG
   {
-    extern void emscripten_console_error (const char *);
     static int wrpo_count = 0;
     wrpo_count++;
     if (wrpo_count <= 3 || wrpo_count % 50 == 0)
       {
 	char buf[128];
-	snprintf (buf, sizeof buf,
-		  "[WASM-C] wait_reading_process_output #%d: read_kbd=%d time_limit=%ld",
-		  wrpo_count, read_kbd, (long) time_limit);
-	emscripten_console_error (buf);
+	WASM_TRACE_FMT (buf, sizeof buf,
+			"[WASM-C] wait_reading_process_output #%d: read_kbd=%d time_limit=%ld",
+			wrpo_count, read_kbd, (long) time_limit);
       }
   }
 #endif
