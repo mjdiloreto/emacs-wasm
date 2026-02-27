@@ -148,17 +148,11 @@ extern int sys_select (int, fd_set *, fd_set *, fd_set *,
 #ifdef __EMSCRIPTEN__
 /* On WASM, redirect pselect to our wrapper that uses select() instead.
    xterm-pty intercepts __syscall__newselect (used by select) but not
-   __syscall_pselect6 (used by pselect/rpl_pselect).
-
-   Also bypass thread_select (which uses flush_stack_call_func/setjmp)
-   because setjmp conflicts with Asyncify's stack unwinding.  */
+   __syscall_pselect6 (used by pselect/rpl_pselect).  */
 static int wasm_select_wrapper (int, fd_set *, fd_set *, fd_set *,
 				const struct timespec *, const sigset_t *);
 #undef pselect
 #define pselect wasm_select_wrapper
-/* Bypass thread_select — call the function pointer directly.  */
-#define thread_select(func, nfds, rfds, wfds, efds, timeout, sigmask) \
-  (func) (nfds, rfds, wfds, efds, timeout, sigmask)
 #endif
 
 /* Work around GCC 4.3.0 bug with strict overflow checking; see
@@ -5287,15 +5281,32 @@ wait_reading_process_output_1 (void)
 }
 
 #ifdef __EMSCRIPTEN__
-/* On WASM, xterm-pty intercepts __syscall__newselect (used by select)
-   but NOT __syscall_pselect6 (used by pselect).  Wrap select with a
-   pselect-compatible interface so xterm-pty can properly block on
-   terminal input.  */
+/* On WASM, redirect pselect to select so that xterm-pty can intercept
+   via __syscall__newselect.  xterm-pty does NOT intercept
+   __syscall_pselect6 (used by pselect/rpl_pselect), but it DOES
+   intercept __syscall__newselect (used by select) with proper blocking
+   via Atomics.wait() in PROXY_TO_PTHREAD mode.  */
+static int wasm_select_call_count = 0;
+
 static int
 wasm_select_wrapper (int nfds, fd_set *readfds, fd_set *writefds,
 		     fd_set *exceptfds, const struct timespec *timeout,
 		     const sigset_t *sigmask)
 {
+  wasm_select_call_count++;
+  int has_stdin = readfds && FD_ISSET (STDIN_FILENO, readfds);
+
+  if (wasm_select_call_count <= 3 || wasm_select_call_count % 100 == 0)
+    {
+      extern void emscripten_console_error (const char *);
+      char buf[128];
+      snprintf (buf, sizeof buf,
+		"[WASM-C] wasm_select_wrapper #%d: nfds=%d stdin=%d timeout=%s",
+		wasm_select_call_count, nfds, has_stdin,
+		timeout ? "set" : "null");
+      emscripten_console_error (buf);
+    }
+
   struct timeval tv, *tvp = NULL;
   if (timeout)
     {
@@ -5303,7 +5314,18 @@ wasm_select_wrapper (int nfds, fd_set *readfds, fd_set *writefds,
       tv.tv_usec = timeout->tv_nsec / 1000;
       tvp = &tv;
     }
-  return select (nfds, readfds, writefds, exceptfds, tvp);
+  int result = select (nfds, readfds, writefds, exceptfds, tvp);
+
+  if (wasm_select_call_count <= 3 || wasm_select_call_count % 100 == 0)
+    {
+      extern void emscripten_console_error (const char *);
+      char buf[128];
+      snprintf (buf, sizeof buf,
+		"[WASM-C] select returned %d", result);
+      emscripten_console_error (buf);
+    }
+
+  return result;
 }
 /* wasm_select_wrapper is used below via the pselect macro */
 #endif
@@ -5395,6 +5417,15 @@ wait_reading_process_output (intmax_t time_limit, int nsecs, int read_kbd,
 	   || NILP (wait_proc->thread)
 	   || XTHREAD (wait_proc->thread) == current_thread);
 
+#ifdef __EMSCRIPTEN__
+  {
+    static int wrpo_count = 0;
+    wrpo_count++;
+    if (wrpo_count <= 3 || wrpo_count % 50 == 0)
+      fprintf (stderr, "[WASM-C] wait_reading_process_output #%d: read_kbd=%d time_limit=%ld\n",
+	       wrpo_count, read_kbd, (long) time_limit);
+  }
+#endif
   FD_ZERO (&Available);
   FD_ZERO (&Writeok);
 
