@@ -287,6 +287,9 @@ run_build() {
         "-s NO_EXIT_RUNTIME=1"
         "-s ASSERTIONS=1"
 
+        # xterm-pty: connects Emacs TTY I/O to xterm.js via PTY layer
+        "--js-library" "${EMACS_SRC}/../web/node_modules/xterm-pty/emscripten-pty.js"
+
         # Bundle Emacs data files into virtual filesystem
         # These are required for Emacs to start (lisp files, charsets, etc.)
         "--preload-file" "${EMACS_SRC}/lisp@/usr/local/share/emacs/31.0.50/lisp"

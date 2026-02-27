@@ -7350,7 +7350,15 @@ static void init_alloc_once_for_pdumper (void);
 void
 init_alloc_once (void)
 {
+#ifdef __EMSCRIPTEN__
+  /* On WASM, set a very high GC threshold to prevent GC from running
+     during the bootstrap phase.  The conservative stack scanner produces
+     false positives on WASM's shadow stack.  loadup.el also sets this
+     but we need it before loadup runs.  */
+  gc_cons_threshold = EMACS_INT_MAX;
+#else
   gc_cons_threshold = GC_DEFAULT_THRESHOLD;
+#endif
   /* Even though Qt's contents are not set up, its address is known.  */
   Vpurify_flag = Qt;
 

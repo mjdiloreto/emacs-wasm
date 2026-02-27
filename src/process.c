@@ -145,6 +145,22 @@ extern int sys_select (int, fd_set *, fd_set *, fd_set *,
                        const struct timespec *, const sigset_t *);
 #endif
 
+#ifdef __EMSCRIPTEN__
+/* On WASM, redirect pselect to our wrapper that uses select() instead.
+   xterm-pty intercepts __syscall__newselect (used by select) but not
+   __syscall_pselect6 (used by pselect/rpl_pselect).
+
+   Also bypass thread_select (which uses flush_stack_call_func/setjmp)
+   because setjmp conflicts with Asyncify's stack unwinding.  */
+static int wasm_select_wrapper (int, fd_set *, fd_set *, fd_set *,
+				const struct timespec *, const sigset_t *);
+#undef pselect
+#define pselect wasm_select_wrapper
+/* Bypass thread_select — call the function pointer directly.  */
+#define thread_select(func, nfds, rfds, wfds, efds, timeout, sigmask) \
+  (func) (nfds, rfds, wfds, efds, timeout, sigmask)
+#endif
+
 /* Work around GCC 4.3.0 bug with strict overflow checking; see
    <https://gcc.gnu.org/bugzilla/show_bug.cgi?id=52904>.
    This bug appears to be fixed in GCC 5.1, so don't work around it there.  */
@@ -5269,6 +5285,28 @@ static void
 wait_reading_process_output_1 (void)
 {
 }
+
+#ifdef __EMSCRIPTEN__
+/* On WASM, xterm-pty intercepts __syscall__newselect (used by select)
+   but NOT __syscall_pselect6 (used by pselect).  Wrap select with a
+   pselect-compatible interface so xterm-pty can properly block on
+   terminal input.  */
+static int
+wasm_select_wrapper (int nfds, fd_set *readfds, fd_set *writefds,
+		     fd_set *exceptfds, const struct timespec *timeout,
+		     const sigset_t *sigmask)
+{
+  struct timeval tv, *tvp = NULL;
+  if (timeout)
+    {
+      tv.tv_sec = timeout->tv_sec;
+      tv.tv_usec = timeout->tv_nsec / 1000;
+      tvp = &tv;
+    }
+  return select (nfds, readfds, writefds, exceptfds, tvp);
+}
+/* wasm_select_wrapper is used below via the pselect macro */
+#endif
 
 #if defined HAVE_ANDROID && !defined ANDROID_STUBIFY	\
   && defined THREADS_ENABLED
