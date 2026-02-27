@@ -4381,6 +4381,11 @@ _Noreturn
 struct terminal *
 init_tty (const char *name, const char *terminal_type, bool must_succeed)
 {
+#ifdef __EMSCRIPTEN__
+  fprintf (stderr, "[WASM] init_tty: name=%s type=%s must_succeed=%d\n",
+	   name ? name : "(null)", terminal_type ? terminal_type : "(null)",
+	   must_succeed);
+#endif
 #ifdef HAVE_ANDROID
   maybe_fatal (must_succeed, 0, "Text terminals are not supported"
 	       " under Android", "Text terminals are not supported"
@@ -4447,6 +4452,17 @@ init_tty (const char *name, const char *terminal_type, bool must_succeed)
   {
     /* Open the terminal device.  */
 
+#ifdef __EMSCRIPTEN__
+    /* On WASM, there's no /dev/tty.  Use stdin/stdout directly.
+       xterm-pty hooks into Emscripten's TTY device at the fd level,
+       so fd 0 (stdin) and fd 1 (stdout) are already connected to
+       the virtual PTY.  */
+    {
+      int fd = STDIN_FILENO;
+      tty->input = stdin;
+      tty->output = stdout;
+    }
+#else
     /* If !ctty, don't recognize it as our controlling terminal, and
        don't make it the controlling tty if we don't have one now.
 
@@ -4469,12 +4485,15 @@ init_tty (const char *name, const char *terminal_type, bool must_succeed)
         delete_terminal_internal (terminal);
 	maybe_fatal (must_succeed, terminal, diagnostic, diagnostic, name);
       }
+#endif
 
     tty->name = xstrdup (name);
     terminal->name = xstrdup (name);
 
+#ifndef __EMSCRIPTEN__
     if (!O_IGNORE_CTTY && !ctty)
       dissociate_if_controlling_tty (fd);
+#endif
   }
 
   tty->type = xstrdup (terminal_type);

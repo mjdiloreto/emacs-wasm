@@ -963,6 +963,21 @@ restore_kboard_configuration (int was_locked)
 static Lisp_Object
 cmd_error (Lisp_Object data)
 {
+#ifdef __EMSCRIPTEN__
+  extern void emscripten_console_error(const char *);
+  emscripten_console_error("[WASM-C] cmd_error called!");
+  if (CONSP (data) && SYMBOLP (XCAR (data)))
+    {
+      Lisp_Object name = SYMBOL_NAME (XCAR (data));
+      if (STRINGP (name))
+        {
+          char buf[256];
+          snprintf (buf, sizeof buf, "[WASM-C] error: %.*s",
+                    (int)SBYTES (name), SDATA (name));
+          emscripten_console_error (buf);
+        }
+    }
+#endif
   Lisp_Object old_level, old_length;
   specpdl_ref count = SPECPDL_INDEX ();
   Lisp_Object conditions;
@@ -2388,7 +2403,13 @@ read_event_from_main_queue (struct timespec *end_time,
 
   /* Terminate Emacs in batch mode if at eof.  */
   if (noninteractive && FIXNUMP (c) && XFIXNUM (c) < 0)
-    Fkill_emacs (make_fixnum (1), Qnil);
+    {
+#ifdef __EMSCRIPTEN__
+      extern void emscripten_console_error(const char *);
+      emscripten_console_error("[WASM-C] EOF in batch mode! Exiting.");
+#endif
+      Fkill_emacs (make_fixnum (1), Qnil);
+    }
 
   if (FIXNUMP (c))
     {
@@ -8240,7 +8261,11 @@ tty_read_avail_input (struct terminal *terminal,
 #endif /* HAVE_GPM */
 
 /* Determine how many characters we should *try* to read.  */
-#ifdef USABLE_FIONREAD
+#ifdef __EMSCRIPTEN__
+  /* On WASM, FIONREAD doesn't work on the virtual TTY.
+     Just try to read a small amount non-blocking.  */
+  n_to_read = sizeof cbuf;
+#elif defined USABLE_FIONREAD
   /* Find out how much input is available.  */
   if (ioctl (fileno (tty->input), FIONREAD, &n_to_read) < 0)
     {
