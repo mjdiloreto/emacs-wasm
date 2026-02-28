@@ -630,9 +630,15 @@ tgetnum (const char *id)
     return -1;
 
   if (strcmp (id, "co") == 0)        /* Number of columns */
-    return 80;
+    {
+      const char *cols = getenv ("COLUMNS");
+      return cols ? atoi (cols) : 80;
+    }
   else if (strcmp (id, "li") == 0)   /* Number of lines */
-    return 24;
+    {
+      const char *lines = getenv ("LINES");
+      return lines ? atoi (lines) : 24;
+    }
   else if (strcmp (id, "sg") == 0)   /* Standout glitch */
     return 0;
   else if (strcmp (id, "ug") == 0)   /* Underline glitch */
