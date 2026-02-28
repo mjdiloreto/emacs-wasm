@@ -349,13 +349,16 @@ run_build() {
         exit 1
     fi
 
-    # Now continue with bootstrap (create pdumper)
-    log_info "Stage 3b: Creating bootstrap-emacs.pdmp..."
-    emmake make -j1 -C src bootstrap-emacs.pdmp \
-        LDFLAGS="-L$BUILD_DIR $EMSCRIPTEN_LDFLAGS" \
-        MAKE_PDUMPER_FINGERPRINT=/usr/bin/true || {
-        log_warn "Bootstrap failed - this is expected for cross-compilation"
-        log_info "You may need to run the pdumper step manually with Node.js"
+    # Create pdumper bootstrap by running temacs under Node.js
+    log_info "Stage 3b: Creating bootstrap-emacs.pdmp via Node.js..."
+    PDUMP_OUTPUT="${BUILD_DIR}/src/bootstrap-emacs.pdmp"
+    node --stack-size=65536 \
+        "${SCRIPT_DIR}/../test-harnesses/make-pdump.mjs" \
+        "${PDUMP_OUTPUT}" && {
+        log_info "bootstrap-emacs.pdmp created: $(ls -lh "${PDUMP_OUTPUT}" | awk '{print $5}')"
+    } || {
+        log_warn "pdump creation failed - startup will use loadup.el (~30s)"
+        log_warn "Re-run: node --stack-size=65536 test-harnesses/make-pdump.mjs"
     }
 
     log_info "Build complete!"
