@@ -2566,6 +2566,20 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   if (!initialized)
     {
       char *file;
+#ifdef HAVE_PDUMPER
+      /* --temacs and --dump-file were handled in the early arg scan;
+	 skip them so subsequent argmatch calls can find -l loadup.
+	 After sort_args, these priority-1 args sit between --batch
+	 (priority 100) and -l (priority 0), blocking sequential scans.
+	 Pass a non-NULL valptr so argmatch handles --opt=val syntax.  */
+      {
+	char *skip_val;
+	argmatch (argv, argc, "-temacs", "--temacs", 8,
+		  &skip_val, &skip_args);
+	argmatch (argv, argc, "-dump-file", "--dump-file", 6,
+		  &skip_val, &skip_args);
+      }
+#endif
       /* Handle -l loadup, args passed by Makefile.  */
       if (argmatch (argv, argc, "-l", "--load", 3, &file, &skip_args))
 	{
