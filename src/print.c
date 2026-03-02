@@ -2476,9 +2476,6 @@ print_object (Lisp_Object obj, Lisp_Object printcharfun, bool escapeflag)
 	   This can happen with heap-allocated symbols during loadup.  */
 	if (NILP (name) || !STRINGP (name))
 	  {
-	    fprintf (stderr, "[WASM DEBUG] symbol with bad name: obj=%#lx sym@%p name=%#lx\n",
-		     (unsigned long)XLI (obj), (void *)XBARE_SYMBOL (obj),
-		     (unsigned long)XLI (name));
 	    print_c_string ("#<symbol-with-no-name>", printcharfun);
 	    break;
 	  }
