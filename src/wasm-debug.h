@@ -25,8 +25,11 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #define WASM_DEBUG_H
 
 #ifdef __EMSCRIPTEN__
-# ifdef WASM_DEBUG
+/* Always available — bypasses Emacs I/O and prints directly to the
+   JS console.  Safe to call from Worker threads.  */
 extern void emscripten_console_error (const char *);
+
+# ifdef WASM_DEBUG
 #  define WASM_TRACE(msg) emscripten_console_error (msg)
 #  define WASM_TRACE_FMT(buf, sz, fmt, ...) \
      do { snprintf (buf, sz, fmt, __VA_ARGS__);	\

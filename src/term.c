@@ -4381,11 +4381,6 @@ _Noreturn
 struct terminal *
 init_tty (const char *name, const char *terminal_type, bool must_succeed)
 {
-#ifdef __EMSCRIPTEN__
-  fprintf (stderr, "[WASM] init_tty: name=%s type=%s must_succeed=%d\n",
-	   name ? name : "(null)", terminal_type ? terminal_type : "(null)",
-	   must_succeed);
-#endif
 #ifdef HAVE_ANDROID
   maybe_fatal (must_succeed, 0, "Text terminals are not supported"
 	       " under Android", "Text terminals are not supported"

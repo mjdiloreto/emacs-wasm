@@ -41,6 +41,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "commands.h"
 #include "keyboard.h"
 #include "systime.h"
+#include "wasm-debug.h"
 #include "termhooks.h"
 #include "blockinput.h"
 #include "pdumper.h"
@@ -2335,20 +2336,47 @@ readevalloop (Lisp_Object readcharfun,
 
       /* Now eval what we just read.  */
 #ifdef __EMSCRIPTEN__
-      /* On WASM, catch wrong-type-argument errors during form evaluation.
-	 Some forms trigger these errors due to a symbol allocation issue
-	 specific to the Emscripten runtime.  Skip problematic forms so that
-	 loading can continue.  */
+      /* On WASM, catch specific error types during form evaluation
+	 that arise from Emscripten runtime quirks (null-name symbols,
+	 etc.).  Other errors propagate normally so real bugs are not
+	 hidden.  Skipped forms are accumulated in the Lisp variable
+	 `wasm-load-errors' as (FILE FORM ERROR-DATA).  */
       {
 	Lisp_Object form_to_eval = val;
 	Lisp_Object macro = macroexpand;
-	struct handler *h = push_handler (list1 (Qerror),
+	struct handler *h = push_handler (list2 (Qwrong_type_argument,
+						 Qvoid_variable),
 					  CONDITION_CASE);
 	if (sys_setjmp (h->jmp))
 	  {
-	    /* Error was caught.  Skip this form.  */
-	    val = handlerlist->val;
-	    fprintf (stderr, "[WASM] Caught error during form eval, skipping\n");
+	    /* Error was caught — record details for debugging.  */
+	    Lisp_Object err_data = handlerlist->val;
+	    Lisp_Object entry = list3 (sourcename, form_to_eval, err_data);
+	    Lisp_Object sym = intern_c_string ("wasm-load-errors");
+	    Fset (sym, Fcons (entry,
+			      NILP (Fboundp (sym)) ? Qnil
+			      : Fsymbol_value (sym)));
+	    /* Log error type and file for visibility during loadup.
+	       Use emscripten_console_error — message() goes through
+	       Emacs I/O which may not reach the Node.js console.  */
+	    {
+	      Lisp_Object err_sym = CONSP (err_data) ? XCAR (err_data) : Qnil;
+	      const char *err_name = (SYMBOLP (err_sym)
+				      && STRINGP (SYMBOL_NAME (err_sym)))
+		? SSDATA (SYMBOL_NAME (err_sym)) : "unknown";
+	      const char *file_name = STRINGP (sourcename)
+		? SDATA (sourcename) : "?";
+	      /* Also include error message if available.  */
+	      const char *err_msg = "";
+	      if (CONSP (err_data) && CONSP (XCDR (err_data))
+		  && STRINGP (XCAR (XCDR (err_data))))
+		err_msg = SDATA (XCAR (XCDR (err_data)));
+	      char buf[1024];
+	      snprintf (buf, sizeof buf,
+			"WASM: skipped form in %s (%s: %s)",
+			file_name, err_name, err_msg);
+	      emscripten_console_error (buf);
+	    }
 	    val = Qnil;
 	  }
 	else

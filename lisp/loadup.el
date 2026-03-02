@@ -125,11 +125,13 @@
 ;; the loading phase.  GC will be re-enabled after loadup.
 (setq gc-cons-threshold most-positive-fixnum)
 
-;; WASM: Browser WASM engines limit call stack depth to ~1000-2000
-;; frames.  With Asyncify wrappers, each Lisp eval uses multiple
-;; WASM frames.  Reduce max-lisp-eval-depth to stay within limits.
-(setq max-lisp-eval-depth 800)
-(setq max-specpdl-size 2400)
+;; WASM: With PROXY_TO_PTHREAD (no Asyncify), the WASM call stack
+;; is not inflated per Lisp eval, but V8 still limits frames to ~5K
+;; and SpiderMonkey to ~10K.  The bootstrap path above sets
+;; max-lisp-eval-depth to 4200; keep at least that for eager
+;; macro-expansion in cus-start.el et al.
+(setq max-lisp-eval-depth (max max-lisp-eval-depth 4200))
+(setq max-specpdl-size (max max-specpdl-size 8400))
 
 ;; WASM: Suppress warning display during loadup.  In interactive
 ;; mode, display-warning calls sit-for which reads from the terminal.
