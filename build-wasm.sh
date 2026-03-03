@@ -184,12 +184,12 @@ run_configure() {
         LDFLAGS="-L$BUILD_DIR" \
         LIBS="-ltermcap" \
         LIBS_TERMCAP="-ltermcap" \
-        ac_cv_have_decl_alarm=no \
         gl_cv_func_sleep_works=yes \
         ac_cv_func_nanosleep=yes \
         gl_cv_func_nanosleep=yes \
         ac_cv_func_malloc_trim=no \
-        emacs_cv_ptys=no
+        emacs_cv_ptys=no \
+        emacs_cv_usable_SIGIO=no
 
     log_info "Configure complete. Build directory: $BUILD_DIR"
 }

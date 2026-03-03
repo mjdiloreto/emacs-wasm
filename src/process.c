@@ -5336,6 +5336,19 @@ wasm_select_wrapper (int nfds, fd_set *readfds, fd_set *writefds,
       tv.tv_usec = timeout->tv_nsec / 1000;
       tvp = &tv;
     }
+
+  /* Cap timeout to 1 second.  SIGALRM from setitimer may not be
+     delivered while the Worker thread is blocked in Atomics.wait(),
+     so ensure periodic wakeups to process expired C atimers.  Emacs
+     Lisp timers already clamp the timeout via timer_check(), but
+     this guards against C atimer edge cases.  */
+  struct timeval max_tv = { .tv_sec = 1, .tv_usec = 0 };
+  if (!tvp || timercmp (tvp, &max_tv, >))
+    {
+      tv = max_tv;
+      tvp = &tv;
+    }
+
   int result = select (nfds, readfds, writefds, exceptfds, tvp);
 
 #ifdef WASM_DEBUG
