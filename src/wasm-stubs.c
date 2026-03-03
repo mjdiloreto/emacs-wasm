@@ -234,16 +234,6 @@ wasm_stub_sigaction (int signum, const struct sigaction *act,
   return 0;
 }
 
-/* alarm - timer functionality (Emscripten may provide this via setTimeout).  */
-unsigned int
-wasm_stub_alarm (unsigned int seconds)
-{
-  WASM_STUB_WARN("alarm");
-  /* Emscripten's alarm should work via setTimeout.
-     If not available, just return 0 (no previous alarm).  */
-  return 0;
-}
-
 /* ============================================================
    PTY/TTY Stubs
 
