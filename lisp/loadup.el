@@ -130,8 +130,9 @@
 ;; and SpiderMonkey to ~10K.  The bootstrap path above sets
 ;; max-lisp-eval-depth to 4200; keep at least that for eager
 ;; macro-expansion in cus-start.el et al.
+;; (max-specpdl-size was abolished upstream in bug#57911 — specpdl now
+;; grows dynamically, so no WASM-specific bump is needed here anymore.)
 (setq max-lisp-eval-depth (max max-lisp-eval-depth 4200))
-(setq max-specpdl-size (max max-specpdl-size 8400))
 
 ;; WASM: Suppress warning display during loadup.  In interactive
 ;; mode, display-warning calls sit-for which reads from the terminal.
