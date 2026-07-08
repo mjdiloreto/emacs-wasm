@@ -2366,11 +2366,13 @@ readevalloop (Lisp_Object readcharfun,
 		? SSDATA (SYMBOL_NAME (err_sym)) : "unknown";
 	      const char *file_name = STRINGP (sourcename)
 		? SDATA (sourcename) : "?";
-	      /* Also include error message if available.  */
+	      /* Also include error data (e.g. the offending symbol name
+		 for void-variable) — print whatever shape it is, since
+		 it's frequently a symbol, not a string.  */
 	      const char *err_msg = "";
-	      if (CONSP (err_data) && CONSP (XCDR (err_data))
-		  && STRINGP (XCAR (XCDR (err_data))))
-		err_msg = SDATA (XCAR (XCDR (err_data)));
+	      Lisp_Object err_rest = CONSP (err_data) ? XCDR (err_data) : Qnil;
+	      if (!NILP (err_rest))
+		err_msg = SSDATA (Fprin1_to_string (err_rest, Qnil, Qnil));
 	      char buf[1024];
 	      snprintf (buf, sizeof buf,
 			"WASM: skipped form in %s (%s: %s)",
