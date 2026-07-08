@@ -181,6 +181,17 @@
   (let ((max-lisp-eval-depth (* 2 max-lisp-eval-depth)))
     (load "emacs-lisp/macroexp")))
 
+;; WASM: loaddefs.el (loaded below) embeds a verbatim top-level form from
+;; tramp-archive.el whose autoload cookie needs `rx' macros expanded
+;; eagerly at load time. loaddefs.el is never byte-compiled (it's pure
+;; generated data, loaded as source even in a fully-compiled build), so
+;; this bites regardless of whether the branch above ran. Without rx
+;; already loaded, eager macro-expansion tries to autoload it "while
+;; preparing to dump" and fails (see fns.c/eval.c's dump-safety guards).
+;; Load it explicitly first, same treatment as pcase above.
+(unless (featurep 'rx)
+  (let ((macroexp--pending-eager-loads '(skip))) (load "emacs-lisp/rx")))
+
 (load "cus-face")
 (load "faces")  ; after here, `defface' may be used.
 
@@ -196,10 +207,21 @@
 ;; should be updated by overwriting it with an up-to-date copy of
 ;; loaddefs.el that is not corrupted by local changes.
 ;; admin/update_autogen can be used to update ldefs-boot.el periodically.
-(condition-case nil
-    (load "loaddefs")
-  (file-error
-   (load "ldefs-boot.el")))
+;;
+;; WASM: loaddefs.el is pure generated data, never byte-compiled even in
+;; a fully-compiled build, so it's always loaded as interpreted source.
+;; Some verbatim autoload-cookie forms it embeds (e.g. from
+;; tramp-archive.el) reference macros (rx, and transitively whatever rx
+;; itself needs) that eager macro-expansion tries to autoload here —
+;; which fails with "... while preparing to dump" (fns.c/eval.c's dump-
+;; safety guards). Rather than chase each transitive dependency, disable
+;; eager expansion for this one load, same treatment loadup.el already
+;; gives pcase above.
+(let ((macroexp--pending-eager-loads '(skip)))
+  (condition-case nil
+      (load "loaddefs")
+    (file-error
+     (load "ldefs-boot.el"))))
 
 (load "button")                  ;After loaddefs, because of define-minor-mode!
 
