@@ -57,10 +57,16 @@ run_autogen() {
     log_info "Running autogen.sh..."
     cd "$EMACS_SRC"
 
-    if [ ! -f configure ]; then
+    # Regenerate if configure is missing OR stale relative to its inputs
+    # (configure.ac, any *.m4 macro). Without this check, a `git pull`/
+    # rebase that touches configure.ac silently left a stale `configure`
+    # in place, causing hard-to-diagnose mismatches (e.g. a renamed input
+    # file that only the newly-regenerated configure knows about).
+    if [ ! -f configure ] || [ configure.ac -nt configure ] || \
+       find m4 -name '*.m4' -newer configure 2>/dev/null | grep -q .; then
         ./autogen.sh
     else
-        log_info "configure already exists, skipping autogen"
+        log_info "configure is up to date, skipping autogen"
     fi
 }
 
@@ -269,6 +275,18 @@ run_build() {
 
     log_info "Native tools installed and timestamped"
 
+    # Emacs's data/lisp install path is versioned (e.g.
+    # /usr/local/share/emacs/32.0.50/lisp) and must match the version this
+    # exact source tree reports at runtime, or Emacs can't find any of its
+    # Lisp/charset files and refuses to start. Derive it from configure.ac
+    # rather than hardcoding it, since upstream bumps this every dev cycle.
+    EMACS_PKG_VERSION="$(sed -n "s/^AC_INIT(\[GNU Emacs\], \[\([^]]*\)\].*/\1/p" "$EMACS_SRC/configure.ac")"
+    if [ -z "$EMACS_PKG_VERSION" ]; then
+        log_error "Could not determine Emacs version from configure.ac"
+        exit 1
+    fi
+    log_info "Emacs version: $EMACS_PKG_VERSION"
+
     # Emscripten build flags
     # These are passed during the final link step
     EMSCRIPTEN_FLAGS=(
@@ -278,22 +296,23 @@ run_build() {
         "-s ALLOW_MEMORY_GROWTH=1"
         "-s INITIAL_MEMORY=268435456"      # 256MB
         "-s MAXIMUM_MEMORY=2147483648"      # 2GB
-        "-s EXPORTED_RUNTIME_METHODS=['FS','callMain','cwrap','ccall','ENV']"
+        "-s EXPORTED_RUNTIME_METHODS=['FS','NODEFS','callMain','cwrap','ccall','ENV']"
         "-s MODULARIZE=1"
         "-s EXPORT_NAME='createEmacs'"
         "-s FORCE_FILESYSTEM=1"
         "-s ENVIRONMENT='web,worker,node'"
         "-lidbfs.js"
+        "-lnodefs.js"
         "-s NO_EXIT_RUNTIME=1"
-        "-s ASSERTIONS=1"
+        "-s ASSERTIONS=2"
 
         # xterm-pty: connects Emacs TTY I/O to xterm.js via PTY layer
         "--js-library" "${EMACS_SRC}/../web/node_modules/xterm-pty/emscripten-pty.js"
 
         # Bundle Emacs data files into virtual filesystem
         # These are required for Emacs to start (lisp files, charsets, etc.)
-        "--preload-file" "${EMACS_SRC}/lisp@/usr/local/share/emacs/31.0.50/lisp"
-        "--preload-file" "${EMACS_SRC}/etc@/usr/local/share/emacs/31.0.50/etc"
+        "--preload-file" "${EMACS_SRC}/lisp@/usr/local/share/emacs/${EMACS_PKG_VERSION}/lisp"
+        "--preload-file" "${EMACS_SRC}/etc@/usr/local/share/emacs/${EMACS_PKG_VERSION}/etc"
     )
 
     # Join flags for LDFLAGS
