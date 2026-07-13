@@ -372,12 +372,12 @@ run_build() {
     log_info "Stage 3b: Creating bootstrap-emacs.pdmp via Node.js..."
     PDUMP_OUTPUT="${BUILD_DIR}/src/bootstrap-emacs.pdmp"
     node --stack-size=65536 \
-        "${SCRIPT_DIR}/../test-harnesses/make-pdump.mjs" \
+        "${SCRIPT_DIR}/../emacs-wasm.mjs" bootstrap-dump \
         "${PDUMP_OUTPUT}" && {
         log_info "bootstrap-emacs.pdmp created: $(ls -lh "${PDUMP_OUTPUT}" | awk '{print $5}')"
     } || {
         log_warn "pdump creation failed - startup will use loadup.el (~30s)"
-        log_warn "Re-run: node --stack-size=65536 test-harnesses/make-pdump.mjs"
+        log_warn "Re-run: node --stack-size=65536 emacs-wasm.mjs bootstrap-dump"
     }
 
     log_info "Build complete!"
