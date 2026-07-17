@@ -28,6 +28,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #include <errno.h>
 #include <signal.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
@@ -39,6 +40,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <stdio.h>
 #include <stdarg.h>
 #include <netdb.h>
+#include <emscripten/stack.h>
 
 /* Define WASM_STUB_VERBOSE to enable console warnings when stubs are called */
 #ifdef WASM_STUB_VERBOSE
@@ -430,6 +432,49 @@ wasm_stub_getrlimit (int resource, struct rlimit *rlim)
 int
 wasm_stub_setrlimit (int resource, const struct rlimit *rlim)
 {
+  return 0;
+}
+
+/* __syscall_prlimit64 - strong override of Emscripten's weak stub.
+
+   Emscripten's musl routes getrlimit/setrlimit through SYS_prlimit64,
+   whose default handler (system/lib/libc/emscripten_syscall_stubs.c)
+   answers correctly but prints "warning: unsupported syscall:
+   __syscall_prlimit64" on every call in the assertions-enabled libc.
+   Emacs reads RLIMIT_STACK (emacs.c) and RLIMIT_NOFILE (process.c) at
+   startup, so the warning appears on every boot.  Emscripten declares
+   its stub weak, so this strong definition shadows it at link time;
+   the behavior below mirrors the original — reads report the real
+   wasm stack and Emscripten's fd table size, writes are refused.  */
+int
+__syscall_prlimit64 (int pid, int resource, intptr_t new_limit,
+                     intptr_t old_limit)
+{
+  struct rlimit *old = (struct rlimit *) old_limit;
+  if (new_limit)
+    return -EPERM;
+  if (old)
+    {
+      if (resource == RLIMIT_NOFILE)
+        {
+          /* See FS.MAX_OPEN_FDS in Emscripten's src/lib/libfs.js.  */
+          old->rlim_cur = 4096;
+          old->rlim_max = 4096;
+        }
+      else if (resource == RLIMIT_STACK)
+        {
+          /* The wasm stack grows down: base > end, size = base - end.  */
+          uintptr_t end = emscripten_stack_get_end ();
+          uintptr_t base = emscripten_stack_get_base ();
+          old->rlim_cur = base - end;
+          old->rlim_max = base - end;
+        }
+      else
+        {
+          old->rlim_cur = RLIM_INFINITY;
+          old->rlim_max = RLIM_INFINITY;
+        }
+    }
   return 0;
 }
 

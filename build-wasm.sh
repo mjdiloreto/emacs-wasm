@@ -313,6 +313,14 @@ run_build() {
         # These are required for Emacs to start (lisp files, charsets, etc.)
         "--preload-file" "${EMACS_SRC}/lisp@/usr/local/share/emacs/${EMACS_PKG_VERSION}/lisp"
         "--preload-file" "${EMACS_SRC}/etc@/usr/local/share/emacs/${EMACS_PKG_VERSION}/etc"
+
+        # The frontends (doom-index.html, dist-index.html) inject their own
+        # subdirs.el into the packaged lisp dir during preRun, and the
+        # package loader throws EEXIST if the archive then delivers one.
+        # A native in-tree build (e.g. prepare-doom-home.sh's doom sync)
+        # drops a generated subdirs.el into ${EMACS_SRC}/lisp, so exclude
+        # it here to keep the package deterministic either way.
+        "--exclude-file" "*subdirs.el"
     )
 
     # Join flags for LDFLAGS
