@@ -120,8 +120,13 @@ build_stub_library() {
     # Compile wasm-stubs.c into an object file
     emcc -c "$EMACS_SRC/src/wasm-stubs.c" -o wasm-stubs.o -D__EMSCRIPTEN__ -I"$EMACS_SRC/src"
 
+    # The terminfo %-language interpreter is a separate file so the host
+    # cc can compile it for native unit tests (emacs-build-wasm
+    # scripts/test/test-tparm.c).
+    emcc -c "$EMACS_SRC/src/wasm-tparm.c" -o wasm-tparm.o -D__EMSCRIPTEN__ -I"$EMACS_SRC/src"
+
     # Create a static library
-    emar rcs libtermcap.a wasm-stubs.o
+    emar rcs libtermcap.a wasm-stubs.o wasm-tparm.o
 
     log_info "Created libtermcap.a with WASM stubs"
 }
@@ -566,6 +571,10 @@ case "${1:-help}" in
         ;;
     build)
         check_emscripten
+        # Refresh the stub library (D7): it is otherwise only built at
+        # configure time, so a `build` after editing wasm-stubs.c or
+        # wasm-tparm.c would silently link the stale libtermcap.a.
+        build_stub_library
         run_build
         ;;
     clean)

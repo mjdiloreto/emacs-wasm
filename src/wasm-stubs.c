@@ -635,6 +635,16 @@ tgetstr (const char *id, char **area)
     result = "\b";
   else if (strcmp (id, "pc") == 0)   /* Pad character */
     result = "\0";
+  else if (strcmp (id, "op") == 0)   /* Reset fg/bg to defaults (orig pair).
+                                        term.c gates ALL color support on
+                                        this capability existing.  */
+    result = "\033[39;49m";
+  else if (strcmp (id, "AF") == 0)   /* ANSI set foreground, 256-color
+                                        (fallback; the Tc probe upgrades
+                                        both to direct RGB) */
+    result = "\033[38;5;%p1%dm";
+  else if (strcmp (id, "AB") == 0)   /* ANSI set background, 256-color */
+    result = "\033[48;5;%p1%dm";
   else
     return NULL;
 
@@ -678,6 +688,10 @@ tgetnum (const char *id)
     return 0;
   else if (strcmp (id, "ug") == 0)   /* Underline glitch */
     return 0;
+  else if (strcmp (id, "Co") == 0)   /* Max colors.  Baseline value; the
+                                        Tc probe in term.c raises
+                                        TN_max_colors to 16777216.  */
+    return 256;
 
   return -1;  /* Unknown capability */
 }
@@ -735,11 +749,25 @@ memset_explicit (void *s, int c, size_t n)
    Additional terminfo/ncurses stubs
    ============================================================ */
 
-/* tigetstr - get string capability from terminfo database.  */
+/* tigetstr - get string capability from terminfo database.
+   Like tgetstr, a fixed whitelist of what xterm.js supports.  String
+   literals are returned directly: term.c never frees tigetstr
+   results.  */
 char *
 tigetstr (const char *capname)
 {
-  /* Return NULL for unknown capabilities.  */
+  if (!capname)
+    return NULL;
+
+  if (strcmp (capname, "Smulx") == 0)
+    /* Styled underlines (kitty protocol; xterm.js renders SGR 4:n).
+       Its presence also makes term.c install the standard
+       underline-COLOR sequence (SGR 58) -- see init_tty.  */
+    return "\x1b[4:%p1%dm";
+  if (strcmp (capname, "smxx") == 0)   /* Strike-through */
+    return "\033[9m";
+
+  /* Unknown capability.  */
   return NULL;
 }
 
@@ -747,17 +775,28 @@ tigetstr (const char *capname)
 int
 tigetflag (const char *capname)
 {
-  /* Return -1 for unknown capabilities.  */
+  if (!capname)
+    return -1;
+
+  /* Tc (tmux's de-facto truecolor flag): xterm.js renders 24-bit SGR
+     38;2/48;2 natively.  This is what flips init_tty into direct-RGB
+     mode: TN_max_colors = 16777216, TF_rgb_separate = 1.  */
+  if (strcmp (capname, "Tc") == 0)
+    return 1;
+  /* RGB is probed before Tc; report "present but false" so the probe
+     chain falls through to Tc rather than the RGB code path (whose
+     escape-sequence format xterm.js does not prefer).  */
+  if (strcmp (capname, "RGB") == 0)
+    return 0;
+
+  /* Unknown capability.  */
   return -1;
 }
 
-/* tparm - instantiate a parameterized string.  */
-char *
-tparm (const char *str, ...)
-{
-  /* Return the string unmodified since we don't have real terminfo.  */
-  return (char *)str;
-}
+/* tparm lives in wasm-tparm.c: a real terminfo %-language
+   interpreter.  (The old stub here returned the format string
+   uninstantiated, which would have emitted literal "%p1%d" into the
+   terminal the moment any parameterized capability existed.)  */
 
 /* ============================================================
    PTY Data Availability Check
