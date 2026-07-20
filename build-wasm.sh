@@ -297,7 +297,8 @@ run_build() {
     EMSCRIPTEN_FLAGS=(
         "-pthread"
         "-s PROXY_TO_PTHREAD"
-        "-s STACK_SIZE=16777216"           # 16MB stack
+        "-s STACK_SIZE=67108864"           # 64MB stack
+        "-s BINARYEN_EXTRA_PASSES=--flatten,--spill-pointers"
         "-s ALLOW_MEMORY_GROWTH=1"
         "-s INITIAL_MEMORY=268435456"      # 256MB
         "-s MAXIMUM_MEMORY=2147483648"      # 2GB
@@ -310,6 +311,7 @@ run_build() {
         "-lnodefs.js"
         "-s NO_EXIT_RUNTIME=1"
         "-s ASSERTIONS=2"
+        "-s STACK_OVERFLOW_CHECK=1"
 
         # xterm-pty: connects Emacs TTY I/O to xterm.js via PTY layer
         "--js-library" "${EMACS_SRC}/../web/node_modules/xterm-pty/emscripten-pty.js"
