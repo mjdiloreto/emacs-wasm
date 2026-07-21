@@ -298,11 +298,24 @@ run_build() {
         "-pthread"
         "-s PROXY_TO_PTHREAD"
         "-s STACK_SIZE=67108864"           # 64MB stack
+        # Conservative-GC soundness. LLVM keeps non-address-taken pointers in
+        # wasm locals, which mark_c_stack() cannot see; --spill-pointers
+        # writes them into the scanned shadow stack, and --flatten exposes
+        # operand-stack intermediates so it can. Do NOT remove: without these
+        # the GC frees live objects (`##` symbols, "memory access out of
+        # bounds"). See docs/plans/12-spilling-pointers.org; gate is
+        # `make gc-stress`.
+        #
+        # HAZARD: this only covers Lisp_Object while it is i32. Configuring
+        # --with-wide-int makes it i64, which --spill-pointers does not treat
+        # as a pointer — the fix would silently stop rooting Lisp values with
+        # no build error. scripts/test/memory-budget.mjs fails if that flag
+        # appears here.
         "-s BINARYEN_EXTRA_PASSES=--flatten,--spill-pointers"
         "-s ALLOW_MEMORY_GROWTH=1"
         "-s INITIAL_MEMORY=268435456"      # 256MB
         "-s MAXIMUM_MEMORY=2147483648"      # 2GB
-        "-s EXPORTED_RUNTIME_METHODS=['FS','NODEFS','callMain','cwrap','ccall','ENV']"
+        "-s EXPORTED_RUNTIME_METHODS=['FS','NODEFS','callMain','cwrap','ccall','ENV','wasmMemory']"
         "-s MODULARIZE=1"
         "-s EXPORT_NAME='createEmacs'"
         "-s FORCE_FILESYSTEM=1"
@@ -311,6 +324,10 @@ run_build() {
         "-lnodefs.js"
         "-s NO_EXIT_RUNTIME=1"
         "-s ASSERTIONS=2"
+        # Must stay at 1, not 2. Level 2 injects calls into Emscripten's
+        # absolute stack primitives; --spill-pointers then frames those and
+        # restores the stack pointer to a stale value, so boot underflows.
+        # Level 1 keeps the JS stack cookie without that instrumentation.
         "-s STACK_OVERFLOW_CHECK=1"
 
         # xterm-pty: connects Emacs TTY I/O to xterm.js via PTY layer
