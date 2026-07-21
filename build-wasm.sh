@@ -18,6 +18,21 @@ EMACS_SRC="${SCRIPT_DIR}"
 # unchanged, so this cannot overwrite the shipping artifacts accidentally.
 BUILD_DIR="${BUILD_DIR:-${SCRIPT_DIR}/build-wasm}"
 
+# Shipping defaults keep debug symbols out of the browser artifact and omit
+# historical ChangeLogs from the preloaded filesystem.  Both are opt-in for
+# development and forensic builds.
+WASM_DEBUG="${WASM_DEBUG:-no}"
+WASM_DATA_PROFILE="${WASM_DATA_PROFILE:-browser}"
+case "$WASM_DEBUG" in
+    no) DEBUG_CFLAGS="-g0" ;;
+    yes) DEBUG_CFLAGS="-g" ;;
+    *) log_error "WASM_DEBUG must be 'yes' or 'no'"; exit 2 ;;
+esac
+case "$WASM_DATA_PROFILE" in
+    browser|full) ;;
+    *) log_error "WASM_DATA_PROFILE must be 'browser' or 'full'"; exit 2 ;;
+esac
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -203,7 +218,7 @@ run_configure() {
         --with-dumping=pdumper \
         --disable-build-details \
         "${CHECKING_FLAGS[@]}" \
-        CFLAGS="-O2 -g -pthread" \
+        CFLAGS="-O2 $DEBUG_CFLAGS -pthread" \
         LDFLAGS="-L$BUILD_DIR" \
         LIBS="-ltermcap" \
         LIBS_TERMCAP="-ltermcap" \
@@ -306,6 +321,10 @@ run_build() {
 
     # Emscripten build flags
     # These are passed during the final link step
+    PRELOAD_EXCLUDES=("--exclude-file" "*subdirs.el")
+    if [ "$WASM_DATA_PROFILE" = browser ]; then
+        PRELOAD_EXCLUDES+=("--exclude-file" "*/ChangeLog*")
+    fi
     EMSCRIPTEN_FLAGS=(
         "-pthread"
         "-s PROXY_TO_PTHREAD"
@@ -356,7 +375,7 @@ run_build() {
         # A native in-tree build (e.g. prepare-doom-home.sh's doom sync)
         # drops a generated subdirs.el into ${EMACS_SRC}/lisp, so exclude
         # it here to keep the package deterministic either way.
-        "--exclude-file" "*subdirs.el"
+        "${PRELOAD_EXCLUDES[@]}"
     )
 
     # Join flags for LDFLAGS
