@@ -12,9 +12,11 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BUILD_DIR="${SCRIPT_DIR}/build-wasm"
 BUILD_NATIVE="${SCRIPT_DIR}/build-native"
 EMACS_SRC="${SCRIPT_DIR}"
+# A checking build may opt into a separate directory.  The normal path is
+# unchanged, so this cannot overwrite the shipping artifacts accidentally.
+BUILD_DIR="${BUILD_DIR:-${SCRIPT_DIR}/build-wasm}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -141,6 +143,15 @@ run_configure() {
     # Build stub library for WASM
     build_stub_library
 
+    CHECKING_FLAGS=()
+    if [ "${CHECKING_BUILD:-}" = "yes" ]; then
+        # Keep the runtime consistency checks and the string guards that
+        # amplify the corruption this gate is intended to expose.  This is
+        # deliberately opt-in; the shipping build remains fast.
+        CHECKING_FLAGS+=(--enable-checking=yes,stringbytes,stringoverrun,stringfreelist)
+        log_info "Configuring separate GC checking build"
+    fi
+
     cd "$BUILD_DIR"
 
     # Emscripten configure flags
@@ -191,6 +202,7 @@ run_configure() {
         --with-pdumper=yes \
         --with-dumping=pdumper \
         --disable-build-details \
+        "${CHECKING_FLAGS[@]}" \
         CFLAGS="-O2 -g -pthread" \
         LDFLAGS="-L$BUILD_DIR" \
         LIBS="-ltermcap" \
@@ -403,7 +415,7 @@ run_build() {
     # Create pdumper bootstrap by running temacs under Node.js
     log_info "Stage 3b: Creating bootstrap-emacs.pdmp via Node.js..."
     PDUMP_OUTPUT="${BUILD_DIR}/src/bootstrap-emacs.pdmp"
-    node --stack-size=65536 \
+    WASM_BUILD_DIR="$BUILD_DIR" node --stack-size=65536 \
         "${SCRIPT_DIR}/../emacs-wasm.mjs" bootstrap-dump \
         "${PDUMP_OUTPUT}" && {
         log_info "bootstrap-emacs.pdmp created: $(ls -lh "${PDUMP_OUTPUT}" | awk '{print $5}')"
