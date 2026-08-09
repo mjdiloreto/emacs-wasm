@@ -2328,6 +2328,9 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
       syms_of_marker ();
       syms_of_minibuf ();
       syms_of_process ();
+#ifdef __EMSCRIPTEN__
+      syms_of_wasm_fetch ();
+#endif
       syms_of_search ();
       syms_of_sysdep ();
       syms_of_timefns ();

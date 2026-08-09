@@ -5213,6 +5213,11 @@ extern void init_process_emacs (int);
 extern void syms_of_process (void);
 extern void setup_process_coding_systems (Lisp_Object);
 
+#ifdef __EMSCRIPTEN__
+/* Defined in wasm-fetch.c.  */
+extern void syms_of_wasm_fetch (void);
+#endif
+
 /* Defined in callproc.c.  */
 #ifdef DOS_NT
 # define CHILD_SETUP_ERROR_DESC "Spawning child process"
