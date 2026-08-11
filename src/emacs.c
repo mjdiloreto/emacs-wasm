@@ -1573,10 +1573,7 @@ android_emacs_init (int argc, char **argv, char *dump_file)
     {
       char *launch_value;
       if (!argmatch (argv, argc, "-emacswasm-mode", "--emacswasm-mode",
-                     3, &launch_value, &skip_args)
-          || !argmatch (argv, argc, "-emacswasm-profile",
-                        "--emacswasm-profile", 3, &launch_value,
-                        &skip_args))
+                     3, &launch_value, &skip_args))
         fatal ("Internal emacswasm launch arguments were not canonicalized");
     }
 #endif
@@ -2709,7 +2706,6 @@ static const struct standard_args standard_args[] =
   { "-chdir", "--chdir", 130, 1 },
 #ifdef __EMSCRIPTEN__
   { "-emacswasm-mode", "--emacswasm-mode", 125, 1 },
-  { "-emacswasm-profile", "--emacswasm-profile", 124, 1 },
 #endif
   { "-t", "--terminal", 120, 1 },
   { "-nw", "--no-window-system", 110, 0 },

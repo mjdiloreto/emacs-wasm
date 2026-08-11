@@ -404,3 +404,6 @@ build-native/
 # Scratch native --enable-checking build, used to test whether a WASM
 # checking-build failure reproduces off the WASM port entirely.
 build-native-checking/
+
+# Platform Lisp staged from the harness's web/lisp before the dump.
+lisp/emacswasm/

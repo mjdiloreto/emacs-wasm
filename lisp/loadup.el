@@ -449,6 +449,14 @@
 ;; from the repository.  It is generated just after temacs is built.
 (load "leim/leim-list.el" t)
 
+;; emacswasm: the platform control plane is preloaded so the build-owned C
+;; bootstrap can call it out of the dump before ordinary command-line
+;; processing.  Loading it here rather than from a guest path is what makes it
+;; unskippable by -Q, -q, --no-init-file and --no-site-file, and removes the
+;; filesystem dependency startup would otherwise have.
+(when (eq system-type 'emscripten)
+  (load "emacswasm/emacswasm"))
+
 ;; If you want additional libraries to be preloaded and their
 ;; doc strings kept in the DOC file rather than in core,
 ;; you may load them with a "site-load.el" file.

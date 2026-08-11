@@ -32,32 +32,8 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include "lisp.h"
 
 static char *launch_mode;
-static char *launch_profile;
 static _Atomic bool stop_requested;
 static bool dispatch_failed;
-
-static bool
-identifier_char_p (char c, bool first)
-{
-  return ((c >= 'a' && c <= 'z')
-          || (c >= '0' && c <= '9')
-          || (!first && c == '-'));
-}
-
-static bool
-identifier_p (const char *value)
-{
-  if (!value || !*value || *value == '-')
-    return false;
-  bool after_hyphen = false;
-  for (const char *p = value; *p; p++)
-    {
-      if (!identifier_char_p (*p, p == value) || (after_hyphen && *p == '-'))
-        return false;
-      after_hyphen = *p == '-';
-    }
-  return !after_hyphen;
-}
 
 static const char *
 option_value (int argc, char **argv, int *index, const char *name)
@@ -80,9 +56,7 @@ void
 emacswasm_init_launch (int argc, char **argv, bool required)
 {
   const char *mode = NULL;
-  const char *profile = NULL;
   int mode_count = 0;
-  int profile_count = 0;
   for (int i = 1; i < argc; i++)
     {
       const char *value = option_value (argc, argv, &i, "--emacswasm-mode");
@@ -90,37 +64,26 @@ emacswasm_init_launch (int argc, char **argv, bool required)
         {
           mode = value;
           mode_count++;
-          continue;
-        }
-      value = option_value (argc, argv, &i, "--emacswasm-profile");
-      if (value)
-        {
-          profile = value;
-          profile_count++;
         }
     }
 
-  if (!required && mode_count == 0 && profile_count == 0)
+  if (!required && mode_count == 0)
     return;
-  if (mode_count != 1 || profile_count != 1)
-    fatal ("emacswasm requires exactly one --emacswasm-mode and one --emacswasm-profile");
+  if (mode_count != 1)
+    fatal ("emacswasm requires exactly one --emacswasm-mode");
   if (strcmp (mode, "interactive") && strcmp (mode, "headless")
       && strcmp (mode, "batch"))
     fatal ("Invalid emacswasm mode '%s'", mode);
-  if (!identifier_p (profile))
-    fatal ("Invalid emacswasm profile '%s'", profile);
 
   xfree (launch_mode);
-  xfree (launch_profile);
   launch_mode = xstrdup (mode);
-  launch_profile = xstrdup (profile);
   atomic_store (&stop_requested, false);
 }
 
 bool
 emacswasm_launch_p (void)
 {
-  return launch_mode && launch_profile;
+  return launch_mode != NULL;
 }
 
 bool
@@ -134,10 +97,13 @@ emacswasm_platform_bootstrap (void)
 {
   if (!emacswasm_launch_p ())
     return;
-  Lisp_Object load = intern_c_string ("load");
+  /* The control plane is preloaded by loadup.el and restored from the dump,
+     so -Q, -q, --no-init-file and --no-site-file cannot suppress it and no
+     guest file has to exist for startup to work.  A missing symbol means the
+     image was built wrong; say so rather than failing obscurely later.  */
   Lisp_Object bootstrap = intern_c_string ("emacswasm-platform-bootstrap");
-  calln (load, build_string ("/usr/share/emacswasm/platform/emacswasm.el"),
-         Qnil, Qnil, Qt, Qt);
+  if (NILP (Ffboundp (bootstrap)))
+    fatal ("emacswasm platform control plane is missing from the dump");
   call0 (bootstrap);
 }
 
@@ -157,14 +123,13 @@ emacswasm_report_exit (int code)
 
 DEFUN ("emacswasm-launch-facts", Femacswasm_launch_facts,
        Semacswasm_launch_facts, 0, 0, 0,
-       doc: /* Return the private runtime launch mode and profile.
-The result is a two-element list of strings.  This primitive is private to
-the co-shipped emacswasm platform Lisp.  */)
+       doc: /* Return the private runtime launch mode as a string.
+This primitive is private to the co-shipped emacswasm platform Lisp.  */)
   (void)
 {
   if (!emacswasm_launch_p ())
     return Qnil;
-  return list2 (build_string (launch_mode), build_string (launch_profile));
+  return build_string (launch_mode);
 }
 
 DEFUN ("emacswasm-ready", Femacswasm_ready, Semacswasm_ready, 0, 0, 0,
