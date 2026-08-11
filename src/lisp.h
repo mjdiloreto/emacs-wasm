@@ -5216,6 +5216,16 @@ extern void setup_process_coding_systems (Lisp_Object);
 #ifdef __EMSCRIPTEN__
 /* Defined in wasm-fetch.c.  */
 extern void syms_of_wasm_fetch (void);
+/* Defined in wasm-runtime.c.  */
+extern void syms_of_wasm_runtime (void);
+extern void emacswasm_init_launch (int, char **, bool);
+extern bool emacswasm_launch_p (void);
+extern bool emacswasm_headless_p (void);
+extern void emacswasm_platform_bootstrap (void);
+extern void emacswasm_report_exit (int);
+extern int emacswasm_dispatch (const uint8_t *, size_t, uintptr_t *, uint32_t *);
+extern void emacswasm_free_response (uintptr_t);
+extern void emacswasm_request_stop (void);
 #endif
 
 /* Defined in callproc.c.  */

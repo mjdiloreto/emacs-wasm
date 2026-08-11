@@ -679,6 +679,9 @@ directory got moved.  This is set to be a pair in the form of:
         ;; Recompute NAME now, so that it isn't set when we dump.
         (if (not (or (eq system-type 'ms-dos)
                      (eq system-type 'haiku) ;; BFS doesn't support hard links
+                     ;; Emscripten's MEMFS reports an artificial link-count
+                     ;; ceiling and the release never consumes these aliases.
+                     (eq system-type 'emscripten)
                      ;; There's no point keeping old dumps around for
                      ;; the binary used to build Lisp on the build
                      ;; machine.

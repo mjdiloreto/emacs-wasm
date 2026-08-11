@@ -30,6 +30,10 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 #include <sys/stat.h>
 #include <unistd.h>
 
+#ifdef __EMSCRIPTEN__
+# include <emscripten.h>
+#endif
+
 #define MAIN_PROGRAM
 #include "lisp.h"
 #include "sysstdio.h"
@@ -1446,6 +1450,13 @@ android_emacs_init (int argc, char **argv, char *dump_file)
   initial_emacs_executable = find_emacs_executable (argv[0], &bufsize);
 #endif
 
+#ifdef __EMSCRIPTEN__
+  /* A restored shipping image requires the private launch facts.  Temacs is
+     exempt while it creates that image.  Parse before sort_args mutates the
+     argv vector; the reserved options are consumed below.  */
+  emacswasm_init_launch (argc, argv, initialized);
+#endif
+
   argc = maybe_disable_address_randomization (argc, argv);
 
 
@@ -1556,6 +1567,19 @@ android_emacs_init (int argc, char **argv, char *dump_file)
 #endif
       emacs_wd = emacs_get_current_dir_name ();
     }
+
+#ifdef __EMSCRIPTEN__
+  if (emacswasm_launch_p ())
+    {
+      char *launch_value;
+      if (!argmatch (argv, argc, "-emacswasm-mode", "--emacswasm-mode",
+                     3, &launch_value, &skip_args)
+          || !argmatch (argv, argc, "-emacswasm-profile",
+                        "--emacswasm-profile", 3, &launch_value,
+                        &skip_args))
+        fatal ("Internal emacswasm launch arguments were not canonicalized");
+    }
+#endif
 
 #if defined (HAVE_SETRLIMIT) && defined (RLIMIT_STACK) && !defined (CYGWIN)
   /* Extend the stack space available.  Don't do that if dumping,
@@ -2330,6 +2354,7 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
       syms_of_process ();
 #ifdef __EMSCRIPTEN__
       syms_of_wasm_fetch ();
+      syms_of_wasm_runtime ();
 #endif
       syms_of_search ();
       syms_of_sysdep ();
@@ -2637,6 +2662,14 @@ Using an Emacs configured with --with-x-toolkit=lucid does not have this problem
   safe_run_hooks (Qafter_pdump_load_hook);
 #endif
 
+#ifdef __EMSCRIPTEN__
+  /* This build-owned bootstrap is outside startup.el's site/init controls,
+     so -Q, --batch and --no-site-file cannot suppress it.  */
+  emacswasm_platform_bootstrap ();
+  if (emacswasm_headless_p ())
+    emscripten_exit_with_live_runtime ();
+#endif
+
 #if defined HAVE_ANDROID && !defined ANDROID_STUBIFY && 0
   /* This comes very late in the startup process because it requires
      most of lisp/international to be loaded.  This approach doesn't
@@ -2674,6 +2707,10 @@ static const struct standard_args standard_args[] =
   { "-fingerprint", "--fingerprint", 140, 0 },
 #endif
   { "-chdir", "--chdir", 130, 1 },
+#ifdef __EMSCRIPTEN__
+  { "-emacswasm-mode", "--emacswasm-mode", 125, 1 },
+  { "-emacswasm-profile", "--emacswasm-profile", 124, 1 },
+#endif
   { "-t", "--terminal", 120, 1 },
   { "-nw", "--no-window-system", 110, 0 },
   { "-nw", "--no-windows", 110, 0 },
@@ -3135,6 +3172,9 @@ killed.  */
 		 : XFIXNUM (arg) & INT_MAX);
   else
     exit_code = EXIT_SUCCESS;
+#ifdef __EMSCRIPTEN__
+  emacswasm_report_exit (exit_code);
+#endif
   exit (exit_code);
 }
 
