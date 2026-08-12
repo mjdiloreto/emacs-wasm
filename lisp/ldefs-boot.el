@@ -41127,6 +41127,22 @@ run a specific program.  The program must be a member of
 
 (fn &optional PGM)" t)
 (register-definition-prefixes "play/zone" '("zone-"))
+
+
+;;; Generated autoloads from emacswasm/emacswasm.el
+
+(register-definition-prefixes "emacswasm" '("emacswasm-"))
+
+
+;;; Generated autoloads from emacswasm/wasm-process.el
+
+(register-definition-prefixes "wasm-process" '("emacswasm-no-process-provider" "wasm-process--"))
+
+
+;;; Generated autoloads from emacswasm/wasm-url.el
+
+(register-definition-prefixes "wasm-url" '("wasm-url--"))
+
 
 ;;; End of scraped data
 
