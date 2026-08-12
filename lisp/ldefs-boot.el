@@ -10714,6 +10714,11 @@ Message buffer where you can explain more about the patch.
 (register-definition-prefixes "mail/emacsbug" '("report-emacs-bug-" "submit-emacs-patch-excluded-maintainers"))
 
 
+;;; Generated autoloads from emacswasm/emacswasm.el
+
+(register-definition-prefixes "emacswasm/emacswasm" '("emacswasm-"))
+
+
 ;;; Generated autoloads from vc/emerge.el
 
 (autoload 'emerge-files "vc/emerge"
@@ -13942,6 +13947,8 @@ evaluate the variable `flymake-mode'.
 
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
+
+\\{flymake-mode-map}
 
 (fn &optional ARG)" t)
 (autoload 'flymake-mode-on "progmodes/flymake"
@@ -28417,6 +28424,8 @@ evaluate the variable `rectangle-mark-mode'.
 The mode's hook is called both when the mode is enabled and when it is
 disabled.
 
+\\{rectangle-mark-mode-map}
+
 (fn &optional ARG)" t)
 (register-definition-prefixes "rect" '("apply-on-rectangle" "clear-rectangle-line" "delete-" "extract-rectangle-" "killed-rectangle" "ope" "rectangle-" "spaces-string" "string-rectangle-"))
 
@@ -39478,6 +39487,16 @@ this is equivalent to `display-warning', using
 (register-definition-prefixes "emacs-lisp/warnings" '("warning"))
 
 
+;;; Generated autoloads from emacswasm/wasm-process.el
+
+(register-definition-prefixes "emacswasm/wasm-process" '("emacswasm-no-process-provider" "wasm-process--"))
+
+
+;;; Generated autoloads from emacswasm/wasm-url.el
+
+(register-definition-prefixes "emacswasm/wasm-url" '("wasm-url--"))
+
+
 ;;; Generated autoloads from wdired.el
 
 (autoload 'wdired-change-to-wdired-mode "wdired"
@@ -41127,22 +41146,6 @@ run a specific program.  The program must be a member of
 
 (fn &optional PGM)" t)
 (register-definition-prefixes "play/zone" '("zone-"))
-
-
-;;; Generated autoloads from emacswasm/emacswasm.el
-
-(register-definition-prefixes "emacswasm" '("emacswasm-"))
-
-
-;;; Generated autoloads from emacswasm/wasm-process.el
-
-(register-definition-prefixes "wasm-process" '("emacswasm-no-process-provider" "wasm-process--"))
-
-
-;;; Generated autoloads from emacswasm/wasm-url.el
-
-(register-definition-prefixes "wasm-url" '("wasm-url--"))
-
 
 ;;; End of scraped data
 
